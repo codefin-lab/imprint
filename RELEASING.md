@@ -10,7 +10,7 @@ python3 scripts/release.py 0.3.0          # engine __version__, plugin.json, eve
 # add the release to CHANGELOG.md
 python3 plugins/imprint/engine/tests/run.py --pdf
 git commit -am "Release 0.3.0"
-git tag v0.3.0
+git tag -a v0.3.0 -m "Release 0.3.0"     # annotated: --follow-tags pushes only these
 git push --follow-tags
 ```
 

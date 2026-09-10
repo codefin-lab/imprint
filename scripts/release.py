@@ -8,7 +8,8 @@ scripts/ensure-engine.sh. Then:
 
     1. add the release to CHANGELOG.md
     2. python3 plugins/imprint/engine/tests/run.py
-    3. git commit -am "Release 0.3.0" && git tag v0.3.0 && git push --follow-tags
+    3. git commit -am "Release 0.3.0" && git tag -a v0.3.0 -m "Release 0.3.0" && git push --follow-tags
+       (annotated: --follow-tags does not push a lightweight tag)
 
 A skill updated with `npx skills update` asks for the new engine, and its ensure-engine.sh
 installs that tag on the next build.
