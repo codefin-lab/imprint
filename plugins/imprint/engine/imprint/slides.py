@@ -68,6 +68,7 @@ class Deck:
         self.caption_pt = float(size.get("caption", 11))
         self.footer_pt = float(size.get("footer", 9))
         self.chart_pt = float(size.get("chart", 11))
+        self.code_pt = float(size.get("code", 14))
         c = s.get("colors", {})
         self.ink = str(c.get("ink", "1A202C"))
         self.muted = str(c.get("muted", "4A5568"))
@@ -89,6 +90,10 @@ class Deck:
         self.footer_align = str(s.get("footer_align", "left"))
         self.slide_number = bool(s.get("slide_number", True))
         self.wide_aspect = float(s.get("wide_aspect", 1.6))
+        badge = s.get("footer_badge")
+        self.footer_badge = (self.dir / badge).resolve() if badge else None
+        self.footer_badge_h = Inches(float(s.get("footer_badge_h_in", 0.42)))
+        self.footer_last_line = str(s.get("footer_last_line", "soft"))
 
 
 def _rgb(hex_: str) -> RGBColor:
@@ -128,7 +133,8 @@ def _runs(p, text: str, deck: Deck, size_pt: float, color: str, *, bold=False, f
               bold=bold or b, italic=i)
 
 
-def _para_format(p, *, level=0, bullet=None, number=None, space_after_pt=6, align=None):
+def _para_format(p, *, level=0, bullet=None, number=None, space_after_pt=6, align=None,
+                 bullet_font=None, bullet_color=None):
     """Bullet, indent and spacing written on the paragraph itself, so a text box
     and a body placeholder look the same whatever the master says."""
     pPr = p._p.get_or_add_pPr()
@@ -146,6 +152,18 @@ def _para_format(p, *, level=0, bullet=None, number=None, space_after_pt=6, alig
     pts.set("val", str(int(space_after_pt * 100)))
     spc.append(pts)
     pPr.append(spc)
+    if (bullet is not None or number is not None) and bullet_color:
+        # the marker's own colour and font: without them PowerPoint takes both from the
+        # first run, so an item that opens with `code` gets a grey monospace number
+        clr = OxmlElement("a:buClr")
+        srgb = OxmlElement("a:srgbClr")
+        srgb.set("val", bullet_color)
+        clr.append(srgb)
+        pPr.append(clr)
+    if (bullet is not None or number is not None) and bullet_font:
+        font = OxmlElement("a:buFont")
+        font.set("typeface", bullet_font)
+        pPr.append(font)
     if number is not None:
         el = OxmlElement("a:buAutoNum")
         el.set("type", "arabicPeriod")
@@ -156,6 +174,22 @@ def _para_format(p, *, level=0, bullet=None, number=None, space_after_pt=6, alig
     else:
         el = OxmlElement("a:buNone")
     pPr.append(el)
+    if (bullet is not None or number is not None) and (bullet_font or bullet_color):
+        # LibreOffice draws the marker with the paragraph's default run properties
+        # rather than buFont and buClr, so state them there as well
+        d = OxmlElement("a:defRPr")
+        if bullet_color:
+            fill = OxmlElement("a:solidFill")
+            srgb = OxmlElement("a:srgbClr")
+            srgb.set("val", bullet_color)
+            fill.append(srgb)
+            d.append(fill)
+        if bullet_font:
+            for tag in ("a:latin", "a:cs"):
+                f = OxmlElement(tag)
+                f.set("typeface", bullet_font)
+                d.append(f)
+        pPr.append(d)
 
 
 def _text_items(blocks) -> list[tuple]:
@@ -184,11 +218,20 @@ def _write_text(tf, items, deck: Deck):
         first = False
         size = deck.levels_pt[min(level, len(deck.levels_pt) - 1)]
         if kind == "ul":
-            _para_format(p, level=level, bullet=deck.bullet)
+            _para_format(p, level=level, bullet=deck.bullet, bullet_font=deck.body_font, bullet_color=deck.ink)
         elif kind == "ol":
-            _para_format(p, level=level, number=number or 1)
+            _para_format(p, level=level, number=number or 1, bullet_font=deck.body_font, bullet_color=deck.ink)
         else:
             _para_format(p, level=0, space_after_pt=8 if kind == "lead" else 10)
+        if kind in ("ul", "ol"):
+            lead_span = next(iter(inline_spans(text)), None)
+            if lead_span is not None and lead_span[3]:
+                # LibreOffice draws a list marker in the first run's font whatever
+                # buFont says, so an item that opens with `code` would get a grey
+                # monospace number; an invisible run in the body font goes first
+                lead = p.add_run()
+                lead.text = "\u200b"
+                _font(lead, deck.body_font, size, deck.ink)
         _runs(p, text, deck, size, deck.ink, bold=kind == "lead")
 
 
@@ -321,7 +364,7 @@ def _add_code(slide, text: str, box, deck: Deck) -> float:
     indentation survives.  Returns the estimated height it needs, in inches."""
     x, y, w, h = box
     lines = text.split("\n")
-    size = deck.table_pt
+    size = deck.code_pt
     need = len(lines) * size * 1.25 / 72 + 0.3
     shape = slide.shapes.add_textbox(x, y, w, min(h, int(need * 914400)))
     shape.fill.solid()
@@ -429,21 +472,30 @@ def _set_title(slide, text: str, deck: Deck):
 def _footer(slide, prs, text: str, deck: Deck):
     W, H = prs.slide_width, prs.slide_height
     lines = [t for t in text.split("\n") if t.strip()]
-    box_h = Inches(0.16) * max(1, len(lines)) + Inches(0.1)
+    box_h = Inches(0.19) * max(1, len(lines)) + Inches(0.1)
     y = H - Inches(0.15) - box_h
     right = deck.footer_align == "right"
+    x0, anchor = deck.margin, MSO_ANCHOR.BOTTOM
+    if deck.footer_badge and deck.footer_badge.exists() and not right:
+        # a round badge, then the footer lines beside it, centred on it
+        bh = deck.footer_badge_h
+        by = H - Inches(0.2) - bh
+        pic = slide.shapes.add_picture(str(deck.footer_badge), deck.margin, by, height=bh)
+        x0, anchor = deck.margin + pic.width + Inches(0.12), MSO_ANCHOR.MIDDLE
+        y = by + (bh - box_h) // 2
     if lines:
         w = int(W * 0.5)
-        x = W - deck.margin - w if right else deck.margin
+        x = W - deck.margin - w if right else x0
         tb = slide.shapes.add_textbox(x, y, w, box_h)
         tf = tb.text_frame
-        tf.vertical_anchor = MSO_ANCHOR.BOTTOM
+        tf.vertical_anchor = anchor
         for k, line in enumerate(lines):
             p = tf.paragraphs[0] if k == 0 else tf.add_paragraph()
             _para_format(p, space_after_pt=0, align=PP_ALIGN.RIGHT if right else PP_ALIGN.LEFT)
             run = p.add_run()
             run.text = line
-            _font(run, deck.body_font, deck.footer_pt, deck.soft)
+            emphasis = len(lines) > 1 and k == len(lines) - 1 and deck.footer_last_line == "ink"
+            _font(run, deck.body_font, deck.footer_pt, deck.ink if emphasis else deck.soft)
     if not deck.slide_number:
         return
     nx = deck.margin if right else W - deck.margin - Inches(1.2)

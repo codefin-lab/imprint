@@ -63,6 +63,8 @@ are blurred or too small.
 
 A theme's `slides:` section in `theme.yaml` sets fonts (Latin and Thai), sizes, colours, the
 accent palette, the logo and its position, the footer, and whether section slides are inverted.
+The logo can sit top right, bottom left, or beside every title behind a rule
+(`logo_position: title`, `title_rule`); the footer can lead with a round badge (`footer_badge`).
 After changing it, regenerate the master:
 
 ```bash

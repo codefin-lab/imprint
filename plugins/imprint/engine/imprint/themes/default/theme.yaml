@@ -218,6 +218,7 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
     table: 12
     caption: 11
     chart: 11
+    code: 14                    # code blocks; 12 is too small to project
     footer: 9
   colors:
     ink: "1A202C"
@@ -239,3 +240,8 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
   text_share: 0.4               # share of the width text takes beside a visual
   logo:                         # path relative to this folder; empty = no logo
   cover_art:                    # line art on the title slide; empty = none
+  section_logo:                 # a light logo for the inverted section slides; empty = none
+  title_rule: false             # with logo_position: title, a vertical rule between logo and title
+  cover_logo:                   # the title slide's own logo when the logo sits beside titles
+  footer_badge:                 # a round badge left of the footer text; empty = none
+  footer_last_line: soft        # ink = the last footer line in ink, the others soft

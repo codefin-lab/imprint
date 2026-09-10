@@ -25,6 +25,7 @@ from pathlib import Path
 
 from lxml import etree
 from pptx import Presentation
+from pptx.dml.color import RGBColor
 from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.ns import qn
@@ -180,6 +181,23 @@ def _place_picture(prs, target, path: Path, x, y, *, height=None, width=None):
     return pic
 
 
+def _place_rule(prs, target, x, y, w, h, color: str):
+    """A solid bar on a master or layout, made the same way as _place_picture."""
+    from pptx.enum.shapes import MSO_SHAPE
+    scratch = prs.slides.add_slide(prs.slide_layouts.get_by_name("Blank"))
+    bar = scratch.shapes.add_shape(MSO_SHAPE.RECTANGLE, int(x), int(y), int(w), int(h))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = RGBColor.from_string(str(color).lstrip("#").upper())
+    bar.line.fill.background()
+    bar.shadow.inherit = False
+    target.shapes._spTree.append(bar._element)
+    sldIdLst = prs.slides._sldIdLst
+    last = sldIdLst[-1]
+    prs.part.drop_rel(last.rId)
+    sldIdLst.remove(last)
+    return bar
+
+
 def build(theme: Theme) -> Path:
     s = theme.slides or {}
     out = theme.source.parent / s.get("base", "base.pptx")
@@ -220,14 +238,20 @@ def build(theme: Theme) -> Path:
             logo_w = int(logo_h * im.size[0] / im.size[1])
     logo_at = str(s.get("logo_position", "top-right"))
     title_top, title_h = Inches(0.45), Inches(0.95)
-    title_w = W - 2 * M - (logo_w + Inches(0.3) if logo_w and logo_at == "top-right" else 0)
+    rule = bool(s.get("title_rule", False))
+    rule_w = Inches(float(s.get("title_rule_w_in", 0.045)))
+    title_x = M
+    if logo_w and logo_at == "title":
+        # the logo sits left of every content title, with an optional rule between
+        title_x = M + logo_w + Inches(0.25) + (rule_w + Inches(0.3) if rule else 0)
+    title_w = W - title_x - M - (logo_w + Inches(0.3) if logo_w and logo_at == "top-right" else 0)
     body_top = title_top + title_h + Inches(0.2)
     body_h = H - body_top - Inches(0.55)
 
     for ph in master.placeholders:
         t = ph.placeholder_format.type
         if t == PP_PLACEHOLDER.TITLE:
-            _place(ph, M, title_top, title_w, title_h)
+            _place(ph, title_x, title_top, title_w, title_h)
         elif t == PP_PLACEHOLDER.BODY:
             _place(ph, M, body_top, W - 2 * M, body_h)
 
@@ -250,15 +274,22 @@ def build(theme: Theme) -> Path:
             _lst_style(phs[1], size.get("subtitle", 18), sub, body, anchor="t")
         elif layout.name == "Two Content":
             half = (W - 2 * M - Inches(0.35)) // 2
-            _place(phs[0], M, title_top, title_w, title_h)
+            _place(phs[0], title_x, title_top, title_w, title_h)
             _place(phs[1], M, body_top, half, body_h)
             _place(phs[2], M + half + Inches(0.35), body_top, half, body_h)
         else:
             for idx, ph in phs.items():
                 if ph.placeholder_format.type == PP_PLACEHOLDER.TITLE:
-                    _place(ph, M, title_top, title_w, title_h)
+                    _place(ph, title_x, title_top, title_w, title_h)
                 elif ph.placeholder_format.type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT):
                     _place(ph, M, body_top, W - 2 * M, body_h)
+
+    if logo_at == "title":
+        # a title beside a logo is centred on it
+        for holder in [master] + [l for l in prs.slide_layouts if l.name not in ("Title Slide", "Section Header")]:
+            for ph in holder.placeholders:
+                if ph.placeholder_format.type == PP_PLACEHOLDER.TITLE:
+                    ph._element.find(qn("p:txBody")).find(qn("a:bodyPr")).set("anchor", "ctr")
 
     master_art = s.get("master_art")
     ma_path = (theme.source.parent / master_art).resolve() if master_art else None
@@ -275,8 +306,31 @@ def build(theme: Theme) -> Path:
     if logo_w:
         if logo_at == "bottom-left":
             _place_picture(prs, master, logo_path, M, H - Inches(0.15) - logo_h - Inches(0.05), height=logo_h)
+        elif logo_at == "title":
+            _place_picture(prs, master, logo_path, M, title_top + (title_h - logo_h) // 2, height=logo_h)
+            if rule:
+                rule_h = int(logo_h * 1.25)
+                _place_rule(prs, master, M + logo_w + Inches(0.25), title_top + (title_h - rule_h) // 2,
+                            rule_w, rule_h, ink)
+            # the title slide's title is mid-page, so it hides the master's logo and
+            # takes its own, usually the full wordmark
+            cover = prs.slide_layouts.get_by_name("Title Slide")
+            cover._element.set("showMasterSp", "0")
+            cl = s.get("cover_logo")
+            cl_path = (theme.source.parent / cl).resolve() if cl else None
+            if cl_path and cl_path.exists():
+                cl_h = Inches(float(s.get("cover_logo_h_in", 0.3)))
+                _place_picture(prs, cover, cl_path, M, H - Inches(0.25) - cl_h, height=cl_h)
         else:
             _place_picture(prs, master, logo_path, W - M - logo_w, title_top + Inches(0.12), height=logo_h)
+    section_logo = s.get("section_logo")
+    sl_path = (theme.source.parent / section_logo).resolve() if section_logo else None
+    if sl_path and sl_path.exists():
+        # the section layout hides the master's shapes (a dark logo would vanish on the
+        # inverted background), so it carries its own light one, in the logo's corner
+        sl_h = Inches(float(s.get("section_logo_h_in", 0.5)))
+        _place_picture(prs, prs.slide_layouts.get_by_name("Section Header"), sl_path,
+                       M, H - Inches(0.2) - sl_h, height=sl_h)
     art = s.get("cover_art")
     art_path = (theme.source.parent / art).resolve() if art else None
     if art_path and art_path.exists():
@@ -285,6 +339,12 @@ def build(theme: Theme) -> Path:
         from PIL import Image
         with Image.open(art_path) as im:
             art_w = int(art_h * im.size[0] / im.size[1])
+        # keep the art clear of the title: it may start no further left than the
+        # title box ends, so a two-line title never runs over the lines
+        room = W - (M + int(W * 0.58)) - Inches(0.2) + Inches(0.4)
+        if art_w > room:
+            art_h = int(art_h * room / art_w)
+            art_w = room
         pic = _place_picture(prs, cover, art_path, W - art_w + Inches(0.4), H - art_h, height=art_h)
         spTree = cover.shapes._spTree
         spTree.remove(pic._element)
