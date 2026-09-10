@@ -56,17 +56,46 @@ so **render the PDF and look at every slide**:
 pdftoppm -png -r 50 deck.pdf /tmp/deck/s    # then read the images
 ```
 
-Look for text running out of its box, anything covering the logo or footer, and pictures that
-are blurred or too small.
+Look for:
+
+- a title that wraps, or breaks a word across lines; titles beside a logo have less room, so
+  keep them to one line and shorten the words rather than the type
+- text running out of its box, anything covering the logo or footer
+- pictures that are blurred or too small, line art that stops in mid-slide
+- a font that is not the theme's: check with `pdffonts deck.pdf`. The theme's fonts must be
+  installed on the machine that builds and on the one that shows the deck
+
+The PDF is made by LibreOffice in Imprint's own profile, so a LibreOffice window you have open
+neither blocks it nor lends it the fonts it had when it started.
 
 ## Themes
 
-A theme's `slides:` section in `theme.yaml` sets fonts (Latin and Thai), sizes, colours, the
-accent palette, the logo and its position, the footer, and whether section slides are inverted.
-The logo can sit top right, bottom left, or beside every title behind a rule
-(`logo_position: title`, `title_rule`); the footer can lead with a round badge (`footer_badge`).
-After changing it, regenerate the master:
+A theme's `slides:` section in `theme.yaml` holds the whole slide design; the engine never
+does. After changing anything there, regenerate the master and rebuild:
 
 ```bash
 imprint make-base-pptx --theme <name or folder>
 ```
+
+| Key | What it sets |
+| :-- | :-- |
+| `font.heading`, `font.body` | Latin and Thai typefaces (titles are set bold) |
+| `size.title`, `size.body`, `size.levels`, `size.code`, `size.footer` | type sizes in points |
+| `colors`, `accents` | ink, paper, greys, and the palette PowerPoint offers for charts |
+| `logo`, `logo_position` | `top-right`, `bottom-left`, or `title`: beside every content title |
+| `title_rule` | with `logo_position: title`, a vertical rule between logo and title |
+| `cover_logo`, `cover_art` | the title slide's own logo and line art (the art keeps clear of the title) |
+| `section_inverted` | dark section slides, with light text |
+| `section_logo` | a light logo on the dark section slides |
+| `section_art` | line art on the dark section slides, recoloured by the engine |
+| `section_art_color`, `section_art_alpha` | its line colour and strength (0 to 1) |
+| `section_art_corner`, `section_art_flip` | its corner, and a flip so the edges it was cropped on meet the slide's edges |
+| `footer` | footer text; `\n` starts a second line |
+| `footer_align`, `footer_last_line` | left or right; `ink` sets the last line darker than the rest |
+| `footer_badge`, `footer_badge_invert` | a round badge before the footer, and its version for dark slides |
+| `footer_bottom_in`, `footer_h_in` | how far the footer sits above the edge, and the space kept clear for it |
+| `slide_number`, `max_bullets`, `bullet_char` | slide numbers, the bullet warning limit, the bullet |
+
+Line art is usually a crop of a larger drawing, so its lines stop at the edges it was cut on.
+Place it so those edges sit on the slide's edges (a corner, with `section_art_flip` when the
+corner differs from the crop), or the lines end in mid-air.

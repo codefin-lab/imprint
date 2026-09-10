@@ -3,6 +3,12 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.2.6 (2026-09-11)
+
+- The slides skill documents every `slides:` theme key in one table, and its checks now cover
+  titles that wrap beside a logo, line art that stops in mid-slide, and fonts (`pdffonts`).
+  No engine change.
+
 ## 0.2.5 (2026-09-11)
 
 - Slides: `section_art_flip` (vertical, horizontal or both) turns the section slides' line art
