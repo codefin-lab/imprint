@@ -32,9 +32,17 @@ general international standards, so a BRD reads like a BRD and an API specificat
 | PDFs and the table of contents | LibreOffice | `brew install --cask libreoffice` | `apt install libreoffice` |
 | reviewing PDFs | poppler | `brew install poppler` | `apt install poppler-utils` |
 | the default theme | the Sarabun and Anuphan fonts | from Google Fonts | from Google Fonts |
-| installing skills | Node.js, for `npx` | `brew install node` | `apt install nodejs npm` |
+| installing skills | Node.js 22.20 or later, for `npx skills` | `brew install node` | see below |
 
 The engine's own Python packages are pinned and installed with it; nothing else to install.
+
+**Node.js on Debian or Ubuntu**: the distribution's own `nodejs` package is too old for
+`npx skills` (Ubuntu 24.04 ships 18). Install 22 from NodeSource:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+sudo apt install nodejs
+```
 
 ## Install
 
@@ -45,7 +53,10 @@ npx skills add codefin-lab/imprint -g
 npx skills add cathrynlavery/diagram-design -g
 ```
 
-`-g` installs for your user; leave it out to install into the current project only. The first
+`-g` installs for your user; leave it out to install into the current project only.
+In a script or CI, where there is no terminal to answer its questions, name the agent and
+skip the prompts: `npx skills add codefin-lab/imprint -g -a claude-code -y`.
+ The first
 time a skill builds something, its `scripts/ensure-engine.sh` installs the engine (the
 `imprint` command) at the version the skill needs. To install it straight away:
 
