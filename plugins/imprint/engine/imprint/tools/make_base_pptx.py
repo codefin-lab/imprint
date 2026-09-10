@@ -352,6 +352,14 @@ def build(theme: Theme) -> Path:
         hexc = str(s.get("section_art_color", "FFFFFF")).lstrip("#")
         tinted = Image.new("RGBA", art.size, tuple(int(hexc[i:i + 2], 16) for i in (0, 2, 4)) + (0,))
         tinted.putalpha(alpha)
+        # line art is a crop: its lines stop at the edges it was cut on. Flip it so those
+        # edges land on the slide's edges in the chosen corner, and the lines run off the
+        # slide instead of ending in mid-air
+        flip = str(s.get("section_art_flip", "none"))
+        if flip in ("vertical", "both"):
+            tinted = ImageOps.flip(tinted)
+        if flip in ("horizontal", "both"):
+            tinted = ImageOps.mirror(tinted)
         tmp = Path(tempfile.mkdtemp()) / "section-art.png"
         tinted.save(tmp)
         sa_h = int(H * float(s.get("section_art_height", 0.7)))

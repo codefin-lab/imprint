@@ -3,6 +3,12 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.2.5 (2026-09-11)
+
+- Slides: `section_art_flip` (vertical, horizontal or both) turns the section slides' line art
+  so the edges it was cropped on land on the slide's edges; its lines run off the slide
+  instead of stopping in mid-air.
+
 ## 0.2.4 (2026-09-11)
 
 - Slides: dark section slides can carry line art (`section_art`), recoloured by the engine

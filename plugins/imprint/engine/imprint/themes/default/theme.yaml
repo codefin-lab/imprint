@@ -250,3 +250,4 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
   section_art_color: FFFFFF     # its line colour
   section_art_alpha: 0.35       # how strong the lines are, 0 to 1
   section_art_corner: top-right # top-right, top-left, bottom-right or bottom-left
+  section_art_flip: none        # vertical, horizontal or both: put the art's cut edges on the slide edges
