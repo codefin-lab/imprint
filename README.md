@@ -24,21 +24,36 @@ general international standards, so a BRD reads like a BRD and an API specificat
 | Minutes of meeting, technical report | decisions and actions with owners; findings first |
 | Presentation | assertion-evidence slides, WCAG 2.2 contrast |
 
+## Requirements
+
+| Needed for | What | macOS | Debian or Ubuntu |
+| :-- | :-- | :-- | :-- |
+| the engine | Python 3.11 or later, and uv (or pipx or pip) | `brew install python uv` | `apt install python3 pipx` |
+| PDFs and the table of contents | LibreOffice | `brew install --cask libreoffice` | `apt install libreoffice` |
+| reviewing PDFs | poppler | `brew install poppler` | `apt install poppler-utils` |
+| the default theme | the Sarabun and Anuphan fonts | from Google Fonts | from Google Fonts |
+| installing skills | Node.js, for `npx` | `brew install node` | `apt install nodejs npm` |
+
+The engine's own Python packages are pinned and installed with it; nothing else to install.
+
 ## Install
 
-With [skills](https://github.com/vercel-labs/skills), for Claude Code and other agents:
+**With [skills](https://github.com/vercel-labs/skills)**, for Claude Code and other agents:
 
 ```bash
 npx skills add codefin-lab/imprint -g
 npx skills add cathrynlavery/diagram-design -g
 ```
 
-The first time a skill builds something, its `scripts/ensure-engine.sh` installs the engine
-(the `imprint` command) with `uv`, `pipx` or `pip`. LibreOffice (for PDFs), poppler and the
-default theme's fonts (Sarabun, Anuphan) are yours to install; `imprint doctor` lists what is
-missing.
+`-g` installs for your user; leave it out to install into the current project only. The first
+time a skill builds something, its `scripts/ensure-engine.sh` installs the engine (the
+`imprint` command) at the version the skill needs. To install it straight away:
 
-Or as a Claude Code plugin:
+```bash
+bash ~/.claude/skills/docgen/scripts/ensure-engine.sh
+```
+
+**As a Claude Code plugin** instead:
 
 ```text
 /plugin marketplace add codefin-lab/imprint
@@ -46,8 +61,25 @@ Or as a Claude Code plugin:
 /plugin install diagram-design@imprint
 ```
 
-Then ask for what you need: "write a BRD for customer onboarding", "turn these notes into
-minutes", "make a ten-slide deck from this proposal".
+**The command only**, without any skills:
+
+```bash
+uv tool install "git+https://github.com/codefin-lab/imprint@v0.2.0#subdirectory=plugins/imprint/engine"
+```
+
+## Check the installation
+
+```bash
+imprint --version
+imprint doctor
+```
+
+`imprint doctor` lists anything missing (LibreOffice, poppler, fonts) with how to install it,
+and says whether a newer release exists. If `imprint` is not found, add `~/.local/bin` to your
+`PATH`.
+
+Then ask your agent for what you need: "write a BRD for customer onboarding", "turn these
+notes into minutes", "make a ten-slide deck from this proposal".
 
 ## Upgrade
 
@@ -56,10 +88,18 @@ npx skills update -g
 ```
 
 That fetches the new skills; each one pins the engine version it was written for, so the next
-build upgrades the engine to match. Plugin users: `claude plugin marketplace update imprint`, then
-`claude plugin update imprint@imprint` (takes effect after a restart).
-`imprint doctor` says when a newer release exists. Releases and what changed:
+build upgrades the engine to match. Plugin users: `claude plugin marketplace update imprint`,
+then `claude plugin update imprint@imprint`, and restart. What changed in each release:
 `CHANGELOG.md`.
+
+## Uninstall
+
+```bash
+npx skills remove docgen slides -g
+uv tool uninstall imprint-engine        # or: pipx uninstall imprint-engine
+```
+
+Plugin users: `claude plugin uninstall imprint@imprint`.
 
 ## The command
 
