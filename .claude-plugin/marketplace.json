@@ -17,9 +17,9 @@
       "name": "diagram-design",
       "source": {
         "source": "github",
-        "repo": "codefin-lab/diagram-design"
+        "repo": "cathrynlavery/diagram-design"
       },
-      "description": "Editorial architecture, flow, sequence, state, ER, AWS and 35 other diagram types as HTML, SVG and PNG, with connector geometry checked by verifiers."
+      "description": "Editorial diagrams (architecture, flowchart, sequence, state machine, ER, timeline, swimlane, and many more) as standalone HTML, SVG and PNG. By Cathryn Lavery."
     }
   ]
 }

@@ -10,7 +10,7 @@ standards, so a BRD reads like a BRD and an API specification like one.
 | Plugin | What it does |
 | :-- | :-- |
 | `imprint` | Markdown to .docx and .pptx; templates and guidance per document type |
-| `diagram-design` | architecture, flow, sequence, state, ER, AWS and other diagrams, checked for geometry |
+| `diagram-design` | editorial architecture, flow, sequence, state, ER and other diagrams, by [Cathryn Lavery](https://github.com/cathrynlavery/diagram-design) |
 
 ## Document types
 
