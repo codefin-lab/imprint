@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate a theme's base.pptx (slide master and layouts) from theme.yaml, under slides:.
 
-    python3 tools/make_base_pptx.py --theme default
-    python3 tools/make_base_pptx.py --theme /path/to/brand/themes/my-theme
+    imprint make-base-pptx --theme default
+    imprint make-base-pptx --theme /path/to/brand/themes/my-theme
 
 The master is built from code, not exported from PowerPoint, so the same theme
 always gives the same master and a brand is a handful of values plus a logo:
@@ -30,8 +30,7 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from imprint.theme import Theme  # noqa: E402
+from ..theme import Theme
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -301,10 +300,10 @@ def build(theme: Theme) -> Path:
     return out
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--theme", default="default", help="theme name, or a path to a theme folder")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     out = build(Theme.load(args.theme))
     print(out)
     return 0

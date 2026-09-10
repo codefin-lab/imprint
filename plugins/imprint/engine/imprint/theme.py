@@ -6,7 +6,13 @@ from pathlib import Path
 
 import yaml
 
-THEMES_DIR = Path(__file__).resolve().parent.parent / "themes"
+THEMES_DIR = Path(__file__).resolve().parent / "themes"
+
+
+def theme_dir(name_or_path) -> Path:
+    """A theme folder: a path to one, or the name of a theme that ships with the engine."""
+    path = Path(name_or_path)
+    return path if path.is_dir() else THEMES_DIR / str(name_or_path)
 DEFAULT_THEME = "default"
 
 
@@ -104,7 +110,7 @@ class Theme:
     @classmethod
     def load(cls, name_or_path: str | Path = DEFAULT_THEME) -> "Theme":
         path = Path(name_or_path)
-        directory = path if path.is_dir() else THEMES_DIR / str(name_or_path)
+        directory = theme_dir(name_or_path)
         spec = directory / "theme.yaml"
         if not spec.exists():
             available = ", ".join(sorted(p.name for p in THEMES_DIR.iterdir() if p.is_dir()))

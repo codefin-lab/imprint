@@ -2,15 +2,16 @@
 
 Documents, diagrams and slides from Markdown, in your own house style.
 
-Imprint is a set of Claude Code plugins. You write, or ask Claude to write, a Markdown file;
-Imprint builds a Word document or a PowerPoint deck from it in your company's design, the same
-bytes every time. Each document type comes with guidance based on general international
-standards, so a BRD reads like a BRD and an API specification like one.
+Imprint is a set of agent skills and the engine behind them. You write, or ask Claude to
+write, a Markdown file; Imprint builds a Word document or a PowerPoint deck from it in your
+company's design, the same bytes every time. Each document type comes with guidance based on
+general international standards, so a BRD reads like a BRD and an API specification like one.
 
-| Plugin | What it does |
+| Skill | What it does |
 | :-- | :-- |
-| `imprint` | Markdown to .docx and .pptx; templates and guidance per document type |
-| `diagram-design` | editorial architecture, flow, sequence, state, ER and other diagrams, by [Cathryn Lavery](https://github.com/cathrynlavery/diagram-design) |
+| `docgen` | Markdown to .docx: proposals, BRDs, technical and API specifications, minutes, reports |
+| `slides` | Markdown to .pptx on a generated slide master |
+| `diagram-design` | editorial diagrams, by [Cathryn Lavery](https://github.com/cathrynlavery/diagram-design) |
 
 ## Document types
 
@@ -25,11 +26,19 @@ standards, so a BRD reads like a BRD and an API specification like one.
 
 ## Install
 
+With [skills](https://github.com/vercel-labs/skills), for Claude Code and other agents:
+
 ```bash
-git clone https://github.com/codefin-lab/imprint.git && cd imprint && ./setup.sh
+npx skills add codefin-lab/imprint -g
+npx skills add cathrynlavery/diagram-design -g
 ```
 
-Then in Claude Code:
+The first time a skill builds something, its `scripts/ensure-engine.sh` installs the engine
+(the `imprint` command) with `uv`, `pipx` or `pip`. LibreOffice (for PDFs), poppler and the
+default theme's fonts (Sarabun, Anuphan) are yours to install; `imprint doctor` lists what is
+missing.
+
+Or as a Claude Code plugin:
 
 ```text
 /plugin marketplace add codefin-lab/imprint
@@ -37,40 +46,57 @@ Then in Claude Code:
 /plugin install diagram-design@imprint
 ```
 
-Ask for what you need: "write a BRD for customer onboarding", "turn these notes into minutes",
-"make a ten-slide deck from this proposal".
+Then ask for what you need: "write a BRD for customer onboarding", "turn these notes into
+minutes", "make a ten-slide deck from this proposal".
 
-## Without Claude
+## Upgrade
 
 ```bash
-python3 plugins/imprint/engine/build_docx.py plugins/imprint/templates/brd.md --pdf
-python3 plugins/imprint/engine/build_pptx.py plugins/imprint/templates/presentation.md --pdf
+npx skills update -g
 ```
+
+That fetches the new skills; each one pins the engine version it was written for, so the next
+build upgrades the engine to match. Plugin users: `/plugin marketplace update imprint`.
+`imprint doctor` says when a newer release exists. Releases and what changed:
+`CHANGELOG.md`.
+
+## The command
+
+```bash
+imprint new brd docs/BRD-Onboarding.md      # start from a template (imprint new lists them)
+imprint docx docs/BRD-Onboarding.md --pdf
+imprint new presentation deck.md && imprint pptx deck.md --pdf
+imprint doctor
+```
+
+Without the skills: `uv tool install "git+https://github.com/codefin-lab/imprint@v0.2.0#subdirectory=plugins/imprint/engine"`.
 
 ## Your own brand
 
 A theme is a folder: `theme.yaml` (fonts, sizes, colours, cover labels, default company
 details, slide settings), `base.docx` (cover page, styles, header and footer) and `base.pptx`
-(slide master, generated from `theme.yaml`). Copy `plugins/imprint/engine/themes/default`,
-change it, regenerate the master with `tools/make_base_pptx.py`, and build with
-`--theme <folder>`.
+(slide master, generated with `imprint make-base-pptx`). Copy the default theme (`imprint
+themes` prints where it is), change it, and build with `--theme <folder>`.
 
-To give a team its house style, templates and conventions in one install, put the theme in a
-plugin of its own with a skill that names it. Keep that plugin private if your brand is.
+To give a team its house style, templates and conventions in one install, put the theme and
+templates in a skill of its own that names them, and pin the engine in its own
+`scripts/ensure-engine.sh`. Keep that repository private if your brand is.
 
 ## Layout
 
 ```text
 plugins/imprint/
-  skills/docgen/      document skill and per-type references
-  skills/slides/      deck skill and presentation reference
-  engine/             build_docx.py, build_pptx.py, the imprint package, tools, themes, tests
-  templates/          one Markdown template per document type
+  skills/docgen/      document skill, per-type references, ensure-engine.sh
+  skills/slides/      deck skill, presentation reference, ensure-engine.sh
+  engine/             the imprint package: command, themes, templates, tests
+scripts/release.py    set a new version everywhere at once
+setup.sh              install the engine from this checkout, check LibreOffice and fonts
 ```
 
 ## Contributing
 
-See `CONTRIBUTING.md`. Run `python3 plugins/imprint/engine/tests/run.py` before a pull request.
+See `CONTRIBUTING.md` and `RELEASING.md`. Run `python3 plugins/imprint/engine/tests/run.py`
+before a pull request.
 
 ## License
 

@@ -18,6 +18,8 @@ one opacity, for both drawings.  Composition and placement are unchanged.
 """
 from __future__ import annotations
 
+from ..theme import theme_dir
+
 import argparse
 import io
 import zipfile
@@ -168,7 +170,7 @@ def render(spec, width_pt: float, colour: str, alpha: float, dpi: int,
     return buf.getvalue()
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--theme", default="default")
@@ -178,9 +180,9 @@ def main() -> int:
     ap.add_argument("--dpi", type=int, default=1200)
     ap.add_argument("--out-dir", type=Path, default=None,
                     help="write the PNGs here instead of into base.docx")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
-    base = HERE / "themes" / args.theme / "base.docx"
+    base = theme_dir(args.theme) / "base.docx"
     if not base.exists():
         print(f"not found: {base}")
         return 1

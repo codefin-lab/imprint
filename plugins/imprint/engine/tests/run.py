@@ -22,8 +22,9 @@ PLUGIN = ENGINE.parent
 REPO = PLUGIN.parent.parent
 OUT = ENGINE / "tests" / "out"
 
-DOCS = sorted((PLUGIN / "templates").glob("*.md"))
-DECKS = [PLUGIN / "templates" / "presentation.md"]
+TEMPLATES = ENGINE / "imprint" / "templates"
+DOCS = sorted(TEMPLATES.glob("*.md"))
+DECKS = [TEMPLATES / "presentation.md"]
 SMOKE = ENGINE / "tests" / "smoke.md"
 
 # names that belong in a brand plugin, never in the public engine
@@ -41,12 +42,23 @@ def digest(path: Path) -> str:
     return h.hexdigest()
 
 
-def build(script: str, md: Path, out: Path, pdf: bool) -> tuple[int, str]:
-    cmd = [sys.executable, str(ENGINE / script), str(md), "-o", str(out)]
+def build(kind: str, md: Path, out: Path, pdf: bool) -> tuple[int, str]:
+    # the package in this checkout, not an installed one
+    cmd = [sys.executable, "-m", "imprint.cli", kind, str(md), "-o", str(out)]
     if pdf:
         cmd.append("--pdf")
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=ENGINE)
     return r.returncode, r.stdout + r.stderr
+
+
+def new_from_template(out: Path) -> tuple[int, str]:
+    dest = out / "new" / "proposal.md"
+    if dest.exists():
+        dest.unlink()
+    r = subprocess.run([sys.executable, "-m", "imprint.cli", "new", "proposal", str(dest)],
+                       capture_output=True, text=True, cwd=ENGINE)
+    ok = r.returncode == 0 and dest.exists() and (dest.parent / "example-architecture.png").exists()
+    return (0 if ok else 1), r.stdout + r.stderr
 
 
 def leaks() -> list[str]:
@@ -71,9 +83,9 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     failures = []
 
-    jobs = [("build_docx.py", md, ".docx") for md in DOCS if md.name != "presentation.md"]
-    jobs += [("build_docx.py", SMOKE, ".docx")]
-    jobs += [("build_pptx.py", md, ".pptx") for md in DECKS]
+    jobs = [("docx", md, ".docx") for md in DOCS if md.name != "presentation.md"]
+    jobs += [("docx", SMOKE, ".docx")]
+    jobs += [("pptx", md, ".pptx") for md in DECKS]
     for script, md, ext in jobs:
         first, second = OUT / f"{md.stem}{ext}", OUT / f"{md.stem}.again{ext}"
         code, log = build(script, md, first, args.pdf)
@@ -88,6 +100,19 @@ def main() -> int:
                 failures.append(f"{md.name}: two builds differ")
         warnings = [l.strip() for l in log.splitlines() if "warning" in l]
         print(f"  {status:18} {md.name:18} {ext}" + (f"  ({len(warnings)} warning(s))" if warnings else ""))
+
+    sys.path.insert(0, str(REPO / "scripts"))
+    from release import ENSURE, versions
+    written = versions()
+    same = len(set(written.values())) == 1 and len({f.read_text() for f in ENSURE}) == 1
+    print(f"  {'ok' if same else 'MISMATCH':18} versions {sorted(set(written.values()))}")
+    if not same:
+        failures.append("versions disagree or ensure-engine.sh copies differ: " + str(written))
+
+    code, log = new_from_template(OUT)
+    print(f"  {'ok' if code == 0 else 'FAILED':18} imprint new copies a template and its picture")
+    if code:
+        failures.append(f"imprint new: {log}")
 
     found = leaks()
     print(f"  {'ok' if not found else 'LEAK':18} brand and client names")

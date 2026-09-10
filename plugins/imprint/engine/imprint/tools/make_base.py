@@ -32,7 +32,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 HERE = Path(__file__).resolve().parent
-THEMES = HERE.parent / "themes"
+from ..theme import THEMES_DIR as THEMES  # noqa: E402
 
 DECIMAL_ATTR = re.compile(rb'(\sw:[a-zA-Z]+=")(-?\d+\.\d+)(")')
 
@@ -154,7 +154,7 @@ def normalize_with_libreoffice(path: Path) -> bool:
     return True
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("export", type=Path, help=".docx exported from Google Docs or Word")
@@ -163,7 +163,7 @@ def main() -> int:
                     help="drop the body from the first paragraph containing this text")
     ap.add_argument("--keep-all", action="store_true", help="keep the whole body")
     ap.add_argument("--no-libreoffice", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if not args.export.exists():
         print(f"not found: {args.export}", file=sys.stderr)

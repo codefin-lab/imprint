@@ -1,6 +1,6 @@
 ---
 name: slides
-description: Build a presentation deck (.pptx and PDF) from Markdown with the same syntax as docgen, on a theme's slide master, following presentation best practice (assertion titles, one idea per slide). Use when the user wants a presentation, pitch, deck or slides, or wants to turn a document into slides.
+description: "Build a presentation deck (.pptx and PDF) from Markdown with the same syntax as docgen, on a theme's slide master, following presentation best practice (assertion titles, one idea per slide). Use when the user wants a presentation, pitch, deck or slides, or wants to turn a document into slides."
 ---
 
 # slides: Markdown to .pptx
@@ -9,13 +9,19 @@ The same Markdown as docgen, laid out on slides. The output is a real PowerPoint
 native layouts, editable text, a slide master from the theme. Same Markdown, same bytes.
 Read `references/presentation.md` before writing a deck.
 
+**Before the first build in a session**, make sure the engine is installed and new enough:
+
 ```bash
-cp "${CLAUDE_PLUGIN_ROOT}/templates/presentation.md" <project>/deck.md    # then edit
-python3 "${CLAUDE_PLUGIN_ROOT}/engine/build_pptx.py" <project>/deck.md -o <project>/deck.pptx --pdf
+bash <this skill's folder>/scripts/ensure-engine.sh
 ```
 
-`--theme <name or folder>` picks the design; a brand plugin names its own. `--strict` fails
-on any warning.
+```bash
+imprint new presentation <project>/deck.md        # then edit it
+imprint pptx <project>/deck.md --pdf
+```
+
+`--theme <name or folder>` picks the design; a brand skill names its own. `--strict` fails
+on any warning. `imprint doctor` checks the installation.
 
 ## How Markdown becomes slides
 
@@ -37,7 +43,7 @@ under the text at full width; a visual alone takes the whole area.
 
 ## Diagrams on slides
 
-Ask the diagram-design plugin for the `slide-16x9` preset (1280 by 720, presentation type
+Ask the diagram-design skill for the `slide-16x9` preset (1280 by 720, presentation type
 ramp) and embed the PNG. A diagram drawn for a document page has type too small to project.
 
 ## Checks
@@ -60,5 +66,5 @@ accent palette, the logo and its position, the footer, and whether section slide
 After changing it, regenerate the master:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/engine/tools/make_base_pptx.py" --theme <name or folder>
+imprint make-base-pptx --theme <name or folder>
 ```

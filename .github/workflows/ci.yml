@@ -15,7 +15,9 @@ jobs:
           python-version: "3.12"
       - name: Install LibreOffice and poppler
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-impress poppler-utils
-      - name: Install Python packages
-        run: python -m pip install -r plugins/imprint/engine/requirements.txt
+      - name: Install the engine as users do
+        run: python -m pip install ./plugins/imprint/engine
+      - name: The command works
+        run: imprint --version && imprint new && (imprint doctor || true)
       - name: Build every template twice, verify, check for brand and client names
         run: python plugins/imprint/engine/tests/run.py --pdf

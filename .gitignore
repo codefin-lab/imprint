@@ -3,7 +3,9 @@ __pycache__/
 .DS_Store
 
 # anything built from a template or a test is regenerable
-plugins/imprint/templates/*.docx
-plugins/imprint/templates/*.pptx
-plugins/imprint/templates/*.pdf
+plugins/imprint/engine/imprint/templates/*.docx
+plugins/imprint/engine/imprint/templates/*.pptx
+plugins/imprint/engine/imprint/templates/*.pdf
+*.egg-info/
+build/
 plugins/imprint/engine/tests/out/

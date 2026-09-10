@@ -1,3 +1,5 @@
+__version__ = "0.2.0"
+
 from .theme import Theme
 from .render import build
 

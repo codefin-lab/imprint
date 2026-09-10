@@ -21,6 +21,8 @@ with a fresh export.
 """
 from __future__ import annotations
 
+from ..theme import theme_dir
+
 import argparse
 import io
 import zipfile
@@ -65,7 +67,7 @@ def _drop_drawings(base: Path, media: set[str]) -> int:
     return removed
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--theme", default="default")
@@ -73,9 +75,9 @@ def main() -> int:
                     help="target peak alpha; omit to keep the artwork exactly as exported")
     ap.add_argument("--grow", type=int, default=1,
                     help="MaxFilter size used with --peak; 1 leaves the stroke width alone")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
-    base = HERE / "themes" / args.theme / "base.docx"
+    base = theme_dir(args.theme) / "base.docx"
     if not base.exists():
         print(f"not found: {base}")
         return 1

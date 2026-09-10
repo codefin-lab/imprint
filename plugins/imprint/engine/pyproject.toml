@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imprint-engine"
+dynamic = ["version"]
+description = "Documents and slides from Markdown, in your own house style."
+readme = { text = "The engine behind the Imprint skills: Markdown to .docx and .pptx. See https://github.com/codefin-lab/imprint", content-type = "text/plain" }
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    # exact versions: a chart is drawn by matplotlib, and another version draws other pixels,
+    # so pinning is what makes the same Markdown give the same bytes on every machine
+    "python-docx==1.2.0",
+    "python-pptx==1.0.2",
+    "PyYAML==6.0.3",
+    "matplotlib==3.10.8",
+    "pillow==12.1.0",
+    "lxml==6.0.0",
+    "numpy==2.4.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/codefin-lab/imprint"
+
+[project.scripts]
+imprint = "imprint.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "imprint.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["imprint*"]
+
+[tool.setuptools.package-data]
+imprint = ["themes/**/*", "templates/*"]
