@@ -3,6 +3,11 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.2.3 (2026-09-11)
+
+- Slides: `footer_bottom_in` sets how far a footer badge and its lines sit above the bottom
+  edge (default 0.2 in, as before).
+
 ## 0.2.2 (2026-09-11)
 
 - PDF conversion runs LibreOffice in Imprint's own profile (`~/.cache/imprint/libreoffice`).

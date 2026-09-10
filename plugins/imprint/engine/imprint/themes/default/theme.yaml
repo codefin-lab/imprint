@@ -245,3 +245,4 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
   cover_logo:                   # the title slide's own logo when the logo sits beside titles
   footer_badge:                 # a round badge left of the footer text; empty = none
   footer_last_line: soft        # ink = the last footer line in ink, the others soft
+  footer_bottom_in: 0.2         # gap between a footer badge and the bottom edge

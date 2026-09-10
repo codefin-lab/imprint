@@ -93,6 +93,7 @@ class Deck:
         badge = s.get("footer_badge")
         self.footer_badge = (self.dir / badge).resolve() if badge else None
         self.footer_badge_h = Inches(float(s.get("footer_badge_h_in", 0.42)))
+        self.footer_bottom = Inches(float(s.get("footer_bottom_in", 0.2)))   # badge to the slide's bottom edge
         self.footer_last_line = str(s.get("footer_last_line", "soft"))
         inv = s.get("footer_badge_invert")
         self.footer_badge_invert = (self.dir / inv).resolve() if inv else None
@@ -487,7 +488,7 @@ def _footer(slide, prs, text: str, deck: Deck, *, inverted: bool = False):
         # a round badge, then the footer lines beside it, centred on it and set a
         # little high, where the eye reads two small lines as centred
         bh = deck.footer_badge_h
-        by = H - Inches(0.2) - bh
+        by = H - deck.footer_bottom - bh
         pic = slide.shapes.add_picture(str(badge), deck.margin, by, height=bh)
         x0, anchor = deck.margin + pic.width + Inches(0.12), MSO_ANCHOR.MIDDLE
         y = by + (bh - box_h) // 2 - Inches(0.04)
