@@ -15,21 +15,14 @@ import sys
 from pathlib import Path
 
 from . import Theme, build
+from .office import convert, find_soffice
 from .verify import check
 
 HERE = Path(__file__).resolve().parent
 
 
-def find_soffice() -> str | None:
-    exe = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-    return exe if shutil.which("soffice") or Path(exe).exists() else None
-
-
 def to_pdf(soffice: str, docx_path: Path) -> Path:
-    subprocess.run([soffice, "--headless", "--convert-to", "pdf",
-                    "--outdir", str(docx_path.parent), str(docx_path)],
-                   check=True, capture_output=True)
-    return docx_path.with_suffix(".pdf")
+    return convert(soffice, docx_path)
 
 
 def heading_pages(pdf: Path, headings: list[str], skip_until: int = 1) -> dict:
@@ -135,14 +128,11 @@ def main(argv=None) -> int:
         print("  verify      ok")
 
     if args.pdf:
-        soffice = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-        if not Path(soffice).exists() and not shutil.which("soffice"):
+        soffice = find_soffice()
+        if not soffice:
             print("  pdf         skipped (LibreOffice not found)")
         else:
-            subprocess.run([soffice, "--headless", "--convert-to", "pdf",
-                            "--outdir", str(out.parent), str(out)],
-                           check=True, capture_output=True)
-            print(f"  pdf         {out.with_suffix('.pdf')}")
+            print(f"  pdf         {convert(soffice, out)}")
     return exit_code
 
 

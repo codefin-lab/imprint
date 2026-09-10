@@ -3,7 +3,7 @@
 # Safe to run before every build: it does nothing when a new enough engine is there.
 # scripts/release.py sets REQUIRED; the skill and the engine release together.
 set -euo pipefail
-REQUIRED="0.2.1"
+REQUIRED="0.2.2"
 SPEC="git+https://github.com/codefin-lab/imprint@v${REQUIRED}#subdirectory=plugins/imprint/engine"
 
 export PATH="$HOME/.local/bin:$PATH"

@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from . import Theme
+from .office import convert, find_soffice
 from .slides import build
 
 
@@ -40,13 +41,11 @@ def main(argv=None) -> int:
     for w in stats["warnings"]:
         print(f"  warning     {w}")
     if args.pdf:
-        soffice = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-        if not Path(soffice).exists() and not shutil.which("soffice"):
+        soffice = find_soffice()
+        if not soffice:
             print("  pdf         skipped (LibreOffice not found)")
         else:
-            subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", str(out.parent), str(out)],
-                           check=True, capture_output=True)
-            print(f"  pdf         {out.with_suffix('.pdf')}")
+            print(f"  pdf         {convert(soffice, out)}")
     if stats["warnings"] and args.strict:
         print("  FAILED (--strict)")
         return 2

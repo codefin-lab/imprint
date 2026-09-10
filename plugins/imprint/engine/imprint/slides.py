@@ -94,6 +94,10 @@ class Deck:
         self.footer_badge = (self.dir / badge).resolve() if badge else None
         self.footer_badge_h = Inches(float(s.get("footer_badge_h_in", 0.42)))
         self.footer_last_line = str(s.get("footer_last_line", "soft"))
+        inv = s.get("footer_badge_invert")
+        self.footer_badge_invert = (self.dir / inv).resolve() if inv else None
+        self.section_inverted = bool(s.get("section_inverted", True))
+        self.section_sub = str(c.get("section_sub", "A0AEC0"))
 
 
 def _rgb(hex_: str) -> RGBColor:
@@ -469,20 +473,24 @@ def _set_title(slide, text: str, deck: Deck):
         rPr.append(cs)
 
 
-def _footer(slide, prs, text: str, deck: Deck):
+def _footer(slide, prs, text: str, deck: Deck, *, inverted: bool = False):
+    """The footer on a light slide, or its inverted version on a dark one."""
     W, H = prs.slide_width, prs.slide_height
     lines = [t for t in text.split("\n") if t.strip()]
     box_h = Inches(0.19) * max(1, len(lines)) + Inches(0.1)
     y = H - Inches(0.15) - box_h
     right = deck.footer_align == "right"
     x0, anchor = deck.margin, MSO_ANCHOR.BOTTOM
-    if deck.footer_badge and deck.footer_badge.exists() and not right:
-        # a round badge, then the footer lines beside it, centred on it
+    badge = deck.footer_badge_invert if inverted else deck.footer_badge
+    label, name = (deck.section_sub, deck.paper) if inverted else (deck.soft, deck.ink)
+    if badge and badge.exists() and not right:
+        # a round badge, then the footer lines beside it, centred on it and set a
+        # little high, where the eye reads two small lines as centred
         bh = deck.footer_badge_h
         by = H - Inches(0.2) - bh
-        pic = slide.shapes.add_picture(str(deck.footer_badge), deck.margin, by, height=bh)
+        pic = slide.shapes.add_picture(str(badge), deck.margin, by, height=bh)
         x0, anchor = deck.margin + pic.width + Inches(0.12), MSO_ANCHOR.MIDDLE
-        y = by + (bh - box_h) // 2
+        y = by + (bh - box_h) // 2 - Inches(0.04)
     if lines:
         w = int(W * 0.5)
         x = W - deck.margin - w if right else x0
@@ -491,11 +499,12 @@ def _footer(slide, prs, text: str, deck: Deck):
         tf.vertical_anchor = anchor
         for k, line in enumerate(lines):
             p = tf.paragraphs[0] if k == 0 else tf.add_paragraph()
-            _para_format(p, space_after_pt=0, align=PP_ALIGN.RIGHT if right else PP_ALIGN.LEFT)
+            gap = 2 if k < len(lines) - 1 else 0
+            _para_format(p, space_after_pt=gap, align=PP_ALIGN.RIGHT if right else PP_ALIGN.LEFT)
             run = p.add_run()
             run.text = line
             emphasis = len(lines) > 1 and k == len(lines) - 1 and deck.footer_last_line == "ink"
-            _font(run, deck.body_font, deck.footer_pt, deck.ink if emphasis else deck.soft)
+            _font(run, deck.body_font, deck.footer_pt, name if emphasis else label)
     if not deck.slide_number:
         return
     nx = deck.margin if right else W - deck.margin - Inches(1.2)
@@ -678,6 +687,8 @@ def build(md_path: Path, out_path: Path, theme: Theme) -> dict:
                     _drop_empty_placeholders(slide, {0, 1})
                 else:
                     _drop_empty_placeholders(slide, {0})
+                if deck.section_inverted and deck.footer_badge_invert:
+                    _footer(slide, prs, footer, deck, inverted=True)
                 rest = [b for b in spec["blocks"] if b is not first]
                 if rest:
                     warnings.append(f"slide {n} ({spec['title']}): only the first paragraph under "

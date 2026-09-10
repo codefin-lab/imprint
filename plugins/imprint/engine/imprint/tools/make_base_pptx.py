@@ -189,7 +189,11 @@ def _place_rule(prs, target, x, y, w, h, color: str):
     bar.fill.solid()
     bar.fill.fore_color.rgb = RGBColor.from_string(str(color).lstrip("#").upper())
     bar.line.fill.background()
-    bar.shadow.inherit = False
+    # drop the shape's theme style: LibreOffice applies its effect reference as a
+    # shadow even when the shadow is switched off
+    style = bar._element.find(qn("p:style"))
+    if style is not None:
+        bar._element.remove(style)
     target.shapes._spTree.append(bar._element)
     sldIdLst = prs.slides._sldIdLst
     last = sldIdLst[-1]

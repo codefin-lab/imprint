@@ -32,6 +32,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 HERE = Path(__file__).resolve().parent
+from ..office import convert, find_soffice  # noqa: E402
 from ..theme import THEMES_DIR as THEMES  # noqa: E402
 
 DECIMAL_ATTR = re.compile(rb'(\sw:[a-zA-Z]+=")(-?\d+\.\d+)(")')
@@ -140,14 +141,12 @@ def install_numbering(path: Path, numbering_xml: Path) -> str:
 
 def normalize_with_libreoffice(path: Path) -> bool:
     """Rewrite the package with LibreOffice so the OOXML is schema-clean."""
-    soffice = shutil.which("soffice") or "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-    if not Path(soffice).exists():
+    soffice = find_soffice()
+    if not soffice:
         return False
     outdir = path.parent / "_lo"
     outdir.mkdir(exist_ok=True)
-    subprocess.run([soffice, "--headless", "--convert-to", "docx:MS Word 2007 XML",
-                    "--outdir", str(outdir), str(path)], check=True, capture_output=True)
-    produced = outdir / path.name
+    produced = convert(soffice, path, "docx:MS Word 2007 XML", outdir)
     if produced.exists():
         shutil.move(produced, path)
     shutil.rmtree(outdir, ignore_errors=True)

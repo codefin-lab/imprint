@@ -129,8 +129,9 @@ of a page, every figure readable, every placeholder filled.
 ## Traps
 
 - The table of contents needs LibreOffice: the build lays the document out, reads each
-  heading's page back from the PDF, and rebuilds. If LibreOffice is busy it can fail for one
-  run; the build warns, and a rebuild fixes it.
+  heading's page back from the PDF, and rebuilds. It runs LibreOffice in its own profile, so
+  a LibreOffice window you have open neither blocks it nor lends it stale fonts. If a run
+  still fails, the build warns, and a rebuild fixes it.
 - A heading right after `<!-- landscape -->` must not also get `\pagebreak`; the section break
   already starts a page. Put the landscape marker before the heading.
 - Fonts must be installed on the machine that opens the file, or Word substitutes.

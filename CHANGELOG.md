@@ -3,6 +3,16 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.2.2 (2026-09-11)
+
+- PDF conversion runs LibreOffice in Imprint's own profile (`~/.cache/imprint/libreoffice`).
+  A LibreOffice window that is already open is left alone and no longer takes the conversion
+  over, so a font installed while it was open is used at once and two conversions do not
+  collide.
+- Slides: the rule beside titles has no shadow; LibreOffice drew the shape style's effect.
+- Slides: dark section slides can carry the footer inverted (`footer_badge_invert`).
+- Slides: the footer's lines sit a little high beside the badge, with a small gap between them.
+
 ## 0.2.1 (2026-09-11)
 
 - Slides: the logo can sit beside every title with a rule between them
