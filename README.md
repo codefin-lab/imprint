@@ -56,7 +56,8 @@ npx skills update -g
 ```
 
 That fetches the new skills; each one pins the engine version it was written for, so the next
-build upgrades the engine to match. Plugin users: `/plugin marketplace update imprint`.
+build upgrades the engine to match. Plugin users: `claude plugin marketplace update imprint`, then
+`claude plugin update imprint@imprint` (takes effect after a restart).
 `imprint doctor` says when a newer release exists. Releases and what changed:
 `CHANGELOG.md`.
 

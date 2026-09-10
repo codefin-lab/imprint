@@ -21,7 +21,7 @@ The test suite fails if the version numbers disagree, so a release cannot go out
 | Installed with | They run | What happens |
 | :-- | :-- | :-- |
 | `npx skills` | `npx skills update -g` | new SKILL.md files; the next build's `ensure-engine.sh` installs engine `v0.3.0` |
-| Claude Code plugin | `/plugin marketplace update imprint`, then reinstall the plugin | the same, through the plugin |
+| Claude Code plugin | `claude plugin marketplace update imprint`, then `claude plugin update imprint@imprint` | the same, through the plugin, after a restart |
 | the command only | `uv tool install --force "git+https://github.com/codefin-lab/imprint@v0.3.0#subdirectory=plugins/imprint/engine"` | the engine only |
 
 `imprint doctor` tells anyone on an older version that a newer release exists.
