@@ -1,0 +1,13 @@
+{
+  "name": "imprint",
+  "version": "0.1.0",
+  "description": "Markdown to .docx and .pptx in a theme's design, with standards-based guidance and templates for proposals, BRDs, technical and API specifications, minutes, reports and presentations.",
+  "author": {
+    "name": "Codefin Lab",
+    "url": "https://github.com/codefin-lab"
+  },
+  "homepage": "https://github.com/codefin-lab/imprint",
+  "repository": "https://github.com/codefin-lab/imprint",
+  "license": "MIT",
+  "keywords": ["docx", "pptx", "markdown", "proposal", "brd", "specification", "api", "presentation", "thai"]
+}

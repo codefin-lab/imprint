@@ -1,0 +1,25 @@
+{
+  "name": "imprint",
+  "owner": {
+    "name": "Codefin Lab",
+    "url": "https://github.com/codefin-lab"
+  },
+  "metadata": {
+    "description": "Documents, diagrams and slides from Markdown, in your own house style, following general international document standards."
+  },
+  "plugins": [
+    {
+      "name": "imprint",
+      "source": "./plugins/imprint",
+      "description": "Markdown to .docx and .pptx in a theme's design, with standards-based guidance and templates for proposals, BRDs, technical and API specifications, minutes, reports and presentations."
+    },
+    {
+      "name": "diagram-design",
+      "source": {
+        "source": "github",
+        "repo": "codefin-lab/diagram-design"
+      },
+      "description": "Editorial architecture, flow, sequence, state, ER, AWS and 35 other diagram types as HTML, SVG and PNG, with connector geometry checked by verifiers."
+    }
+  ]
+}

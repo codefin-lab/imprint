@@ -1,0 +1,241 @@
+# Imprint default theme
+#
+# Everything visual lives in this file plus base.docx next to it. To make your
+# own brand, copy this folder, change the values, and pass --theme <folder>.
+#
+#   base      cover page, styles, header and footer, page setup
+#             (regenerate with tools/make_base.py after a design change)
+#   labels    the literal text on base.docx's cover, so the engine can find it
+#   defaults  values for {{placeholders}} a document does not set itself
+#
+name: Imprint Default
+base: base.docx
+
+labels:
+  document_kind: Proposal       # the cover eyebrow and the running header
+  company: "{{COMPANY_NAME}}"
+  team: "{{COMPANY_TEAM}}"
+  legal_prefix: Confidential
+
+defaults:                       # front matter in a document overrides any of these
+  COMPANY_NAME: Your Company Name
+  COMPANY_TEAM: Business Development
+  COMPANY_ADDRESS_1: Street address
+  COMPANY_ADDRESS_2: City, postcode, country
+
+font:
+  body: Sarabun                 # must be installed on the machine opening the file
+  heading: Anuphan SemiBold
+  mono: Courier New
+
+size:                           # points
+  body: 10
+  h1: 20
+  h2: 13
+  h3: 11.5
+
+# Markdown heading level -> paragraph style id in base.docx
+heading_style:
+  1: Heading1
+  2: Heading2
+  3: Heading3
+
+list:
+  indent_twips: 720             # left indent of a list item
+  hanging_twips: 360            # distance from bullet to text
+  ordered_numbers: native       # native = Word numbers the list and renumbers on edit
+                                # literal = print the number written in the Markdown
+  bullet_char: "-"              # marker used by literal mode
+  number_formats: [decimal, lowerLetter, lowerRoman]   # per level, literal mode
+                                # (matches what numbering.xml does in native mode)
+  bullet_abstract: "0"          # abstractNumId in numbering.xml that renders "-"
+  number_abstract: "1"          # abstractNumId that renders "1."
+
+cover:                          # the cover's type hierarchy, applied over base.docx
+  eyebrow:                      # the document kind, e.g. Proposal
+    size: 9
+    font: heading
+    bold: true
+    caps: true
+    color: "8A8A8A"
+    letter_spacing_pt: 1.4
+    after_pt: 3
+  title:                        # project name, the largest line on the page
+    size: 26
+    font: heading
+    bold: true
+    color: "111111"
+    after_pt: 10
+    rule: {size: 6, space: 10, color: "111111"}   # rule under the title
+  meta:                         # Version / Last revised / Document Status
+    size: 9.5
+    color: "6B7280"
+    after_pt: 1
+  label:                        # PREPARED FOR / PREPARED BY
+    size: 8
+    caps: true
+    bold: true
+    color: "8A8A8A"
+    letter_spacing_pt: 1.2
+    after_pt: 3
+  value:                        # client name
+    size: 13
+    color: "1F1F1F"
+  brand:                        # your company name
+    size: 14
+    font: heading
+    bold: true
+    color: "111111"
+  brand_sub:                    # team name, a caption under the company
+    size: 10
+    color: "6B7280"
+  legal:                        # confidentiality notice, small and light
+    size: 6.5
+    italic: true
+    color: "9A9A9A"
+    line_pt: 9
+    before_pt: 22
+
+line_height:
+  body: 1.45
+  h1: 1.15
+  h2: 1.20
+  h3: 1.25
+  list: 1.45
+  table: 1.30
+
+toc:
+  levels: [1]
+  leader: dot
+  indent_twips: 360
+  bold_level_1: false
+
+image:
+  doc_width_in: 6.9
+  doc_height_in: 9.6
+  doc_width_in_landscape: 10.4
+  doc_height_in_landscape: 6.4
+  min_dpi: 150
+  caption:
+    size: 9
+    color: "6B7280"
+    italic: true
+
+space:
+  paragraph_after: 6
+  list_item_after: 2
+  list_after: 6
+  table_after: 6
+  image_after: 6
+  image_caption_gap: 3
+  h1_before_on_new_page: 0
+  h1_after: 6
+  bold_lead_before: 8
+
+table:
+  header_fill: efefef           # header-row background
+  header_bold: true
+  border_color: "000000"
+  border_size: 8                # eighths of a point -> 8 = 1pt
+  cell_margin_twips: 100        # padding inside every cell
+  repeat_header_row: true       # header repeats when a table breaks across pages
+  keep_rows_whole: true
+  banner_rows: true
+  banner_fill: f7f7f7
+  column_widths: content
+  width_twips: 10170
+  measure_cap: 90
+  min_column_share: 0.07
+  max_column_share: 0.45
+  char_twips: 115
+
+page:
+  margin_top_in: 1.0
+  margin_bottom_in: 1.0
+  margin_left_in: 0.6
+  margin_right_in: 0.6
+  header_distance_in: 0.35
+  footer_distance_in: 0.35
+  break_before_h1: true
+  keep_lead_with_next: true
+  keep_intro_with_list: true
+  intro_keep_max_chars: 90
+
+rule:                           # what `---` renders as
+  color: "999999"
+  size: 6
+
+gantt:                          # ```markwhen (and legacy ```gantt) blocks
+  axis_unit: auto               # auto | week | month | quarter | year — top scale in markwhen mode
+  width_in: 7.2
+  doc_width_in: 6.9
+  doc_height_in: 9.6
+  height_per_task_in: 0.40
+  dpi: 300
+  font_pt: 8
+  title_pad_pt: 24
+  bar_height: 0.56
+  corner_ratio: 0.25             # corner radius as a share of bar height — a true circle, never a capsule (max 0.5)
+  show_duration: true
+  grid_color: "E2E8F0"
+  label_color: "4A5568"
+  milestone_color: "1A202C"
+  milestone_size: 7
+  colors:
+    default: "2D3748"
+    design:  "4A5568"
+    infra:   "718096"
+    build:   "2D3748"
+    test:    "A0AEC0"
+    deploy:  "1A202C"
+  landscape: false
+  landscape_width_in: 10.4
+  landscape_height_per_task_in: 0.30
+  doc_width_in_landscape: 10.4
+  doc_height_in_landscape: 6.4
+
+text:
+  line_breaks: hard             # hard = newline in Markdown -> newline in the document
+                                # soft = Markdown default, wrapped lines join into one paragraph
+                                # "two trailing spaces" and a trailing "\" always force a break
+  indent_spaces: 4              # this many leading spaces (or one tab) = one indent level
+
+slides:                         # decks built by build_pptx.py; run tools/make_base_pptx.py after changing these
+  base: base.pptx
+  aspect: "16:9"
+  margin_in: 0.6
+  font:
+    heading: Anuphan SemiBold
+    body: Sarabun
+    mono: Courier New
+  size:                         # points; a projected slide needs far larger type than a page
+    cover: 40
+    section: 36
+    subtitle: 18
+    title: 26
+    body: 18
+    levels: [18, 16, 14]        # bullet sizes by level
+    table: 12
+    caption: 11
+    chart: 11
+    footer: 9
+  colors:
+    ink: "1A202C"
+    muted: "4A5568"
+    soft: "6B7280"
+    paper: "FFFFFF"
+    rule: "CBD5E0"
+    section_sub: "A0AEC0"
+  accents: ["2D3748", "4A5568", "718096", "A0AEC0", "2B6CB0", "1A202C"]
+  table:
+    header_fill: "EFEFEF"
+    banner_fill: "F7F7F7"
+    border_color: "CBD5E0"
+  section_inverted: true        # section slides in ink with white type
+  bullet_char: "\u2022"
+  footer: "{{COMPANY_NAME}}"
+  agenda_title: Agenda
+  max_bullets: 7
+  text_share: 0.4               # share of the width text takes beside a visual
+  logo:                         # path relative to this folder; empty = no logo
+  cover_art:                    # line art on the title slide; empty = none
