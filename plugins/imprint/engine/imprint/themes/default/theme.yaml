@@ -246,3 +246,7 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
   footer_badge:                 # a round badge left of the footer text; empty = none
   footer_last_line: soft        # ink = the last footer line in ink, the others soft
   footer_bottom_in: 0.2         # gap between a footer badge and the bottom edge
+  section_art:                  # line art on the dark section slides, recoloured; empty = none
+  section_art_color: FFFFFF     # its line colour
+  section_art_alpha: 0.35       # how strong the lines are, 0 to 1
+  section_art_corner: top-right # top-right, top-left, bottom-right or bottom-left

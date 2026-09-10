@@ -335,6 +335,38 @@ def build(theme: Theme) -> Path:
         sl_h = Inches(float(s.get("section_logo_h_in", 0.5)))
         _place_picture(prs, prs.slide_layouts.get_by_name("Section Header"), sl_path,
                        M, H - Inches(0.2) - sl_h, height=sl_h)
+    section_art = s.get("section_art")
+    sa_path = (theme.source.parent / section_art).resolve() if section_art else None
+    if sa_path and sa_path.exists():
+        # line art for the dark section slides: recoloured (light lines on ink), faint,
+        # and set in its own corner so it does not repeat the title slide
+        import tempfile
+        from PIL import Image, ImageOps
+        with Image.open(sa_path) as im:
+            art = im.convert("RGBA")
+        alpha = art.getchannel("A")
+        if alpha.getextrema()[0] == 255:          # an opaque drawing: darkness is the line
+            alpha = ImageOps.invert(art.convert("L"))
+        strength = float(s.get("section_art_alpha", 0.35))
+        alpha = alpha.point(lambda v: int(v * strength))
+        hexc = str(s.get("section_art_color", "FFFFFF")).lstrip("#")
+        tinted = Image.new("RGBA", art.size, tuple(int(hexc[i:i + 2], 16) for i in (0, 2, 4)) + (0,))
+        tinted.putalpha(alpha)
+        tmp = Path(tempfile.mkdtemp()) / "section-art.png"
+        tinted.save(tmp)
+        sa_h = int(H * float(s.get("section_art_height", 0.7)))
+        sa_w = int(sa_h * art.width / art.height)
+        room = int(W * 0.5)
+        if sa_w > room:
+            sa_h, sa_w = int(sa_h * room / sa_w), room
+        corner = str(s.get("section_art_corner", "top-right"))
+        x = W - sa_w + Inches(0.3) if corner.endswith("right") else -Inches(0.3)
+        y = -Inches(0.2) if corner.startswith("top") else H - sa_h + Inches(0.2)
+        section = prs.slide_layouts.get_by_name("Section Header")
+        pic = _place_picture(prs, section, tmp, x, y, height=sa_h)
+        spTree = section.shapes._spTree
+        spTree.remove(pic._element)
+        spTree.insert(2, pic._element)   # behind the placeholders
     art = s.get("cover_art")
     art_path = (theme.source.parent / art).resolve() if art else None
     if art_path and art_path.exists():

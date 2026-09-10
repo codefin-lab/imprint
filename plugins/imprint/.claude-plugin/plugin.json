@@ -1,6 +1,6 @@
 {
   "name": "imprint",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Markdown to .docx and .pptx in a theme's design, with standards-based guidance and templates for proposals, BRDs, technical and API specifications, minutes, reports and presentations.",
   "author": {
     "name": "Codefin Lab",

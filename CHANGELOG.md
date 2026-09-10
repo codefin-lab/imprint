@@ -3,6 +3,12 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.2.4 (2026-09-11)
+
+- Slides: dark section slides can carry line art (`section_art`), recoloured by the engine
+  (`section_art_color`, default white), faint (`section_art_alpha`), in a corner of its own
+  (`section_art_corner`), so it need not repeat the title slide's.
+
 ## 0.2.3 (2026-09-11)
 
 - Slides: `footer_bottom_in` sets how far a footer badge and its lines sit above the bottom
