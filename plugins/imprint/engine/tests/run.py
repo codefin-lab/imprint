@@ -24,7 +24,7 @@ OUT = ENGINE / "tests" / "out"
 
 TEMPLATES = ENGINE / "imprint" / "templates"
 DOCS = sorted(TEMPLATES.glob("*.md"))
-DECKS = [TEMPLATES / "presentation.md", TEMPLATES / "showcase.md"]
+DECKS = [TEMPLATES / "presentation.md", TEMPLATES / "showcase.md", TEMPLATES / "widgets.md"]
 SMOKE = ENGINE / "tests" / "smoke.md"
 
 # names that belong in a brand plugin, never in the public engine

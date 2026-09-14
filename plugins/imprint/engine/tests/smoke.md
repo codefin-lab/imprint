@@ -63,3 +63,17 @@ milestone: 4.0 Go-live
 ```
 
 <!-- portrait -->
+
+## Widget as a table
+
+A widget in a document shows its data as a table.
+
+```widget
+widget: column
+title: Applications per month
+suffix: " apps"
+items:
+  Jul: 120
+  Aug: 1800
+note: Branch and app
+```

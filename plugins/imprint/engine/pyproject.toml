@@ -19,6 +19,7 @@ dependencies = [
     "pillow==12.1.0",
     "lxml==6.0.0",
     "numpy==2.4.2",
+    "XlsxWriter==3.2.9",           # the data inside a native chart
 ]
 
 [project.urls]

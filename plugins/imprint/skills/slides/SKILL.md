@@ -7,7 +7,8 @@ description: "Build a presentation deck (.pptx and PDF) from Markdown with the s
 
 The same Markdown as docgen, laid out on slides. The output is a real PowerPoint file:
 native layouts, editable text, a slide master from the theme. Same Markdown, same bytes.
-Read `references/presentation.md` before writing a deck.
+Read `references/presentation.md` before writing a deck, and `references/widgets.md` before
+putting a chart or infographic on a slide.
 
 **Before the first build in a session**, make sure the engine is installed and new enough:
 
@@ -34,6 +35,7 @@ on any warning. `imprint doctor` checks the installation.
 | `### Heading` | a bold lead line inside the slide |
 | paragraphs, bullets, numbered lists | the slide's text |
 | table, `![caption](file.png)`, ` ```markwhen `, code block | a visual |
+| ` ```widget ` with YAML | a chart or infographic (see Widgets below) |
 | `---` or `\pagebreak` | a new slide that keeps the current title |
 | `<!-- notes: ... -->` | speaker notes |
 
@@ -65,6 +67,34 @@ layout, with the Markdown for each.
 
 The build warns past each layout's limits: six cards, six steps, four numbers, six numbered
 items, five closing lines. More than that is two slides.
+
+## Widgets
+
+Charts and infographics are written as a ` ```widget ` block of YAML with one standard set of
+fields, and drawn from PowerPoint's own charts and shapes, so the reader can edit them.
+`references/widgets.md` has the standard, a guide to choosing, and how good data slides look.
+
+````markdown
+## The pilot moved every number that matters
+
+```widget
+widget: kpi
+items:
+  - {label: Accounts opened, value: "12,400", delta: +18%, note: vs 2025}
+  - {label: Days to open, value: 1, delta: -4, note: was 5}
+```
+````
+
+| Kind | Widgets |
+| :-- | :-- |
+| Native charts, data editable in Excel | `column`, `bar`, `stacked-column`, `stacked-bar`, `line`, `area`, `pie`, `doughnut`, `waterfall` |
+| Infographics from shapes | `kpi`, `progress`, `rings`, `funnel`, `timeline`, `cycle`, `hub`, `nested`, `waffle`, `matrix` |
+
+`imprint widgets` lists them, `imprint widgets <name>` prints an example, and
+`imprint new widgets` starts a deck that uses every one. A mistake in the YAML (an unknown
+widget or field, a value that is not a number) becomes a warning naming the slide, and the
+widget is left out; build with `--strict` to stop instead. In a Word document a widget
+becomes a table of its data.
 
 ## Diagrams on slides
 
@@ -122,6 +152,7 @@ imprint make-base-pptx --theme <name or folder>
 | `size.statement`, `size.stat`, `size.card_title`, `size.card_body`, `size.step` | type sizes inside the layouts |
 | `components` | card fill, border and corner radius; `accent` for numbers and step boxes; `accents` to colour cards, steps and stats in order |
 | `dark`, `logo_dark` | the colours of `tone: dark` slides, and the light logo they carry |
+| `widgets`, `size.widget_value`, `size.widget_label` | widget colours (palette, highlight, muted, track, grid, positive, negative, and a `dark` set) and type |
 | `slide_number`, `max_bullets`, `bullet_char` | slide numbers, the bullet warning limit, the bullet |
 
 Line art is usually a crop of a larger drawing, so its lines stop at the edges it was cut on.

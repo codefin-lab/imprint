@@ -3,6 +3,25 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.4.0 (2026-09-14)
+
+- Widgets: charts and infographics written as a ` ```widget ` YAML block with one standard set
+  of fields (`widget`, `title`, `note`, `items` or `categories` and `series`, `prefix`, `suffix`,
+  `decimals`, `max`, `highlight`, `colors`, `labels`, `legend`, `columns`, `center`, `x`, `y`,
+  `quadrants`). Unknown widgets and fields are reported by name.
+- Native PowerPoint charts, data editable in Excel: column, bar, stacked-column, stacked-bar,
+  line, area, pie, doughnut and waterfall. Their embedded workbooks are pinned, so builds stay
+  byte-identical.
+- Infographics from shapes: kpi (with change), progress, rings, funnel, timeline (done, now,
+  next), cycle, hub, nested (market size), waffle and matrix.
+- A widget sits wherever a picture does, beside text or at full width; in a document it becomes a
+  table of its data.
+- `imprint widgets` lists them, prints an example, or lists the fields. Template `widgets`, a deck
+  using every widget. Themes: `slides.widgets` colours, `size.widget_value`, `size.widget_label`.
+- The slides skill: `references/widgets.md` (the standard, choosing a widget, how good data slides
+  look), deck shapes by purpose and choosing a layout from the content.
+- The engine now needs XlsxWriter (pinned), which python-pptx uses for chart data.
+
 ## 0.3.0 (2026-09-14)
 
 - Slides: ten layouts beyond text and a picture: statement, stats, cards, compare, steps,

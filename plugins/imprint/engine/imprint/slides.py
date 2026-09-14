@@ -14,6 +14,8 @@ The same Markdown the document engine reads, mapped onto slides:
                         one, content with an unmistakable shape picks its own
     <!-- tone: dark -->    the current slide on the theme's dark slide; `tone: dark` in
                         the front matter makes it the default
+    ```widget           a chart or infographic from YAML (see widgets.py); it sits
+                        where a picture would
 
 On a content slide, text alone fills the body placeholder, so the outline stays
 editable in PowerPoint.  A table, picture or timeline shares the slide with the
@@ -42,7 +44,7 @@ from .gantt import parse_spec, render_png
 from .markdown import inline_spans, parse, split_front_matter
 from .render import _fill, _is_banner
 from .theme import Theme
-from . import slide_layouts
+from . import slide_layouts, widgets
 
 NOTE = re.compile(r"<!--\s*notes?:\s*(.*?)-->", re.S | re.I)
 NOTE_MARK = "\x00note:"
@@ -51,7 +53,7 @@ DIR_MARK = "\x00dir:"
 LEFTOVER = re.compile(r"\{\{[^}]+\}\}")
 ALIGN = {"left": PP_ALIGN.LEFT, "right": PP_ALIGN.RIGHT, "center": PP_ALIGN.CENTER}
 THAI_MARKS = re.compile(r"[ัิ-ฺ็-๎]")
-VISUAL = ("table", "image", "gantt", "markwhen", "code")
+VISUAL = ("table", "image", "gantt", "markwhen", "code", "widget")
 
 
 # ------------------------------------------------------------------ settings
@@ -403,6 +405,8 @@ def _is_wide(visuals, md_dir: Path, deck: Deck) -> bool:
     kind, payload = visuals[0]
     if kind in ("gantt", "markwhen", "code"):
         return True
+    if kind == "widget":
+        return widgets.is_wide(payload)
     if kind == "table":
         return max(len(r) for r in payload[0]) >= 4
     path = (md_dir / Path(payload[0]).expanduser()).resolve()
@@ -634,6 +638,9 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
                 if need > box[3] / 914400:
                     warnings.append(f"slide {n} ({slide_spec['title']}): code needs about {need:.1f} in; "
                                     f"shorten it or split the slide")
+            elif kind == "widget":
+                widgets.render(slide, payload, box, deck, tone, warnings,
+                               f"slide {n} ({slide_spec['title'] or 'untitled'})")
             elif kind == "image":
                 src, caption = payload
                 path = (md_dir / Path(src).expanduser()).resolve()

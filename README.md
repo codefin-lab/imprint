@@ -10,7 +10,7 @@ general international standards, so a BRD reads like a BRD and an API specificat
 | Skill | What it does |
 | :-- | :-- |
 | `docgen` | Markdown to .docx: proposals, BRDs, technical and API specifications, minutes, reports |
-| `slides` | Markdown to .pptx on a generated slide master |
+| `slides` | Markdown to .pptx on a generated slide master, with layouts and chart and infographic widgets |
 | `diagram-design` | editorial diagrams, by [Cathryn Lavery](https://github.com/cathrynlavery/diagram-design) |
 
 ## Document types
@@ -119,6 +119,8 @@ imprint new brd docs/BRD-Onboarding.md      # start from a template (imprint new
 imprint docx docs/BRD-Onboarding.md --pdf
 imprint new presentation deck.md && imprint pptx deck.md --pdf
 imprint new showcase showcase.md          # every slide layout, and the Markdown behind it
+imprint new widgets widgets.md            # every chart and infographic widget
+imprint widgets                           # list the widgets; imprint widgets kpi prints an example
 imprint doctor
 ```
 

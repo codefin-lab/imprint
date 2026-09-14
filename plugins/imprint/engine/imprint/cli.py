@@ -4,6 +4,7 @@
     imprint docx <file.md> [...]     build a .docx, and a PDF with --pdf
     imprint pptx <file.md> [...]     build a .pptx, and a PDF with --pdf
     imprint themes                   list the themes that ship with the engine, with their folders
+    imprint widgets [name]           list the widgets; with a name, print its example block
     imprint make-base-pptx --theme <name or folder>    regenerate a theme's slide master
     imprint make-base-docx ...       rebuild a theme's base.docx from a Word export
     imprint doctor                   check the installation and look for a newer release
@@ -67,6 +68,28 @@ def _themes(argv: list[str]) -> int:
     return 0
 
 
+def _widgets(argv: list[str]) -> int:
+    from .widgets import FIELDS, ITEM_FIELDS, REGISTRY, catalogue
+    if not argv:
+        print(catalogue())
+        print("\nimprint widgets <name> prints an example; imprint widgets fields lists the standard fields")
+        return 0
+    if argv[0] == "fields":
+        print("Widget fields:")
+        for k, v in FIELDS.items():
+            print(f"  {k:<11} {v}")
+        print("\nItem fields (inside items):")
+        for k, v in ITEM_FIELDS.items():
+            print(f"  {k:<11} {v}")
+        return 0
+    w = REGISTRY.get(argv[0])
+    if w is None:
+        print(f"no widget '{argv[0]}'; choose from: {', '.join(REGISTRY)}", file=sys.stderr)
+        return 1
+    print(f"```widget\n{w.example}\n```")
+    return 0
+
+
 def _latest_release() -> str | None:
     """The newest vX.Y.Z tag, from the GitHub API: plain HTTPS, so no git credentials
     (a stale token for another account would turn even a public read into a 403)."""
@@ -93,7 +116,8 @@ def _doctor(argv: list[str]) -> int:
 
     print(f"imprint {__version__}  ({PKG})")
     for mod, pkg in (("docx", "python-docx"), ("pptx", "python-pptx"), ("yaml", "PyYAML"),
-                     ("matplotlib", "matplotlib"), ("PIL", "pillow"), ("lxml", "lxml")):
+                     ("matplotlib", "matplotlib"), ("PIL", "pillow"), ("lxml", "lxml"),
+                     ("xlsxwriter", "XlsxWriter")):
         try:
             __import__(mod)
             line(True, pkg)
@@ -136,6 +160,7 @@ COMMANDS = {
     "docx": lambda a: _run("build_docx", a),
     "pptx": lambda a: _run("build_pptx", a),
     "themes": _themes,
+    "widgets": _widgets,
     "make-base-pptx": lambda a: _run("tools.make_base_pptx", a),
     "make-base-docx": lambda a: _run("tools.make_base", a),
     "boost-cover-art": lambda a: _run("tools.boost_cover_art", a),

@@ -96,9 +96,9 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
                 content.append(lines[i])
                 i += 1
             i += 1                       # closing fence
-            # a chart language keeps its own kind; every other fence, with or
+            # a chart or widget language keeps its own kind; every other fence, with or
             # without a language tag (json, bash, http), is a code block
-            blocks.append((lang if lang in ("gantt", "markwhen") else "code", "\n".join(content)))
+            blocks.append((lang if lang in ("gantt", "markwhen", "widget") else "code", "\n".join(content)))
             continue
         elif not line:
             flush()

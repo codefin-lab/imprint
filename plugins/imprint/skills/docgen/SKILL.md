@@ -75,6 +75,7 @@ address.
 | `\| **Group** \|  \|  \|` | full-width shaded group row (label must be bold) |
 | fenced code block (any language) | monospace block, for API examples and commands |
 | ` ```markwhen ` | timeline or Gantt chart in markwhen syntax, real dates |
+| ` ```widget ` | a slide chart or infographic (see the slides skill); a document shows its data as a table |
 | `![caption](file.png)` | a picture on its own line, fitted, caption beneath |
 | `<!-- landscape -->` up to `<!-- portrait -->` | a section on landscape pages |
 | `<!-- toc -->` | table of contents with real page numbers |

@@ -225,6 +225,8 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
     card_body: 13
     step: 14
     closing: 40
+    widget_value: 28            # the big number in a kpi, ring or waffle
+    widget_label: 12            # labels inside widgets
     footer: 9
   colors:
     ink: "1A202C"
@@ -264,6 +266,20 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
     card_radius_in: 0.08
     accent: "1A202C"              # numbers, step boxes, the statement bar
     accents: []                  # strip colours for cards and compare headers, in order; empty = none
+  widgets:                        # charts and infographics from ```widget blocks
+    palette: ["2B6CB0", "2D3748", "718096", "A0AEC0", "4A5568"]   # series and items, in order
+    highlight: "2B6CB0"           # what `highlight:` picks out
+    muted: "CBD5E0"               # everything a highlight leaves out
+    track: "EDF2F7"               # the empty part of a bar, ring or waffle
+    grid: "E2E8F0"                # axis lines and gridlines
+    positive: "2F855A"            # a rise, in a kpi or waterfall
+    negative: "C53030"            # a fall
+    dark:                         # the same keys on a dark slide
+      palette: ["63B3ED", "E2E8F0", "A0AEC0", "718096", "4A5568"]
+      highlight: "63B3ED"
+      muted: "4A5568"
+      track: "2D3748"
+      grid: "4A5568"
   dark:                           # slides written with tone: dark
     background: "1A202C"
     text: "FFFFFF"

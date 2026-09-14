@@ -851,6 +851,22 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
             if not _add_gantt(document, payload, theme, landscape=landscape):
                 warnings.append("a chart block produced no bars "
                                 "(unfilled {{placeholder}} in the dates?)")
+        elif kind == "widget":
+            # a page cannot be clicked into, so a document shows the widget's data as a table
+            from .widgets import WidgetError, as_table
+            try:
+                title, rows, aligns, note = as_table(payload)
+            except WidgetError as e:
+                warnings.append(f"widget: {e}")
+                title, rows, note = None, None, None
+            if title:
+                _add_body_paragraph(document, [(f"**{title}**", False)], theme, hard=True)
+            if rows:
+                _add_table(document, rows, theme, aligns)
+            if note:
+                _add_body_paragraph(document, [(str(note), False)], theme, hard=True)
+                for run in document.paragraphs[-1].runs:
+                    run.italic = True
         elif kind == "image":
             src, caption = payload
             problem = _add_image(document, src, caption, theme, landscape=landscape)
