@@ -118,6 +118,7 @@ Plugin users: `claude plugin uninstall imprint@imprint`.
 imprint new brd docs/BRD-Onboarding.md      # start from a template (imprint new lists them)
 imprint docx docs/BRD-Onboarding.md --pdf
 imprint new presentation deck.md && imprint pptx deck.md --pdf
+imprint new showcase showcase.md          # every slide layout, and the Markdown behind it
 imprint doctor
 ```
 

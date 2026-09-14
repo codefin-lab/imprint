@@ -10,6 +10,10 @@ The same Markdown the document engine reads, mapped onto slides:
     ---  or \\pagebreak  a new slide that keeps the current title
     <!-- toc -->        an agenda slide listing the sections that follow
     <!-- notes: ... --> speaker notes for the current slide
+    <!-- layout: name -->  a layout for the current slide (see slide_layouts.py); without
+                        one, content with an unmistakable shape picks its own
+    <!-- tone: dark -->    the current slide on the theme's dark slide; `tone: dark` in
+                        the front matter makes it the default
 
 On a content slide, text alone fills the body placeholder, so the outline stays
 editable in PowerPoint.  A table, picture or timeline shares the slide with the
@@ -38,9 +42,12 @@ from .gantt import parse_spec, render_png
 from .markdown import inline_spans, parse, split_front_matter
 from .render import _fill, _is_banner
 from .theme import Theme
+from . import slide_layouts
 
 NOTE = re.compile(r"<!--\s*notes?:\s*(.*?)-->", re.S | re.I)
 NOTE_MARK = "\x00note:"
+DIRECTIVE = re.compile(r"<!--\s*(layout|tone)\s*:\s*([A-Za-z-]+)\s*-->", re.I)
+DIR_MARK = "\x00dir:"
 LEFTOVER = re.compile(r"\{\{[^}]+\}\}")
 ALIGN = {"left": PP_ALIGN.LEFT, "right": PP_ALIGN.RIGHT, "center": PP_ALIGN.CENTER}
 THAI_MARKS = re.compile(r"[ัิ-ฺ็-๎]")
@@ -211,10 +218,13 @@ def _text_items(blocks) -> list[tuple]:
                 items.append((item_kind, text, level, number if item_kind == "ol" else None))
         elif kind == "h":
             items.append(("lead", payload[1], 0, None))
+        elif kind == "quote":
+            items.append(("p", payload.replace("\n", " "), 0, None))
     return items
 
 
-def _write_text(tf, items, deck: Deck):
+def _write_text(tf, items, deck: Deck, color: str | None = None):
+    ink = color or deck.ink
     tf.word_wrap = True
     tf.auto_size = MSO_AUTO_SIZE.NONE
     first = True
@@ -223,9 +233,9 @@ def _write_text(tf, items, deck: Deck):
         first = False
         size = deck.levels_pt[min(level, len(deck.levels_pt) - 1)]
         if kind == "ul":
-            _para_format(p, level=level, bullet=deck.bullet, bullet_font=deck.body_font, bullet_color=deck.ink)
+            _para_format(p, level=level, bullet=deck.bullet, bullet_font=deck.body_font, bullet_color=ink)
         elif kind == "ol":
-            _para_format(p, level=level, number=number or 1, bullet_font=deck.body_font, bullet_color=deck.ink)
+            _para_format(p, level=level, number=number or 1, bullet_font=deck.body_font, bullet_color=ink)
         else:
             _para_format(p, level=0, space_after_pt=8 if kind == "lead" else 10)
         if kind in ("ul", "ol"):
@@ -236,8 +246,8 @@ def _write_text(tf, items, deck: Deck):
                 # monospace number; an invisible run in the body font goes first
                 lead = p.add_run()
                 lead.text = "\u200b"
-                _font(lead, deck.body_font, size, deck.ink)
-        _runs(p, text, deck, size, deck.ink, bold=kind == "lead")
+                _font(lead, deck.body_font, size, ink)
+        _runs(p, text, deck, size, ink, bold=kind == "lead")
 
 
 def _text_height(items, width_emu: int, deck: Deck) -> float:
@@ -265,7 +275,7 @@ def _picture_size(path: Path) -> tuple[int, int]:
         return (1000, 1000)
 
 
-def _add_picture(slide, path: Path, box, caption: str, deck: Deck):
+def _add_picture(slide, path: Path, box, caption: str, deck: Deck, caption_color: str | None = None):
     x, y, w, h = box
     cap_h = Inches(0.4) if caption else 0
     pw, ph = _picture_size(path)
@@ -283,7 +293,7 @@ def _add_picture(slide, path: Path, box, caption: str, deck: Deck):
         for run_text in [caption]:
             run = p.add_run()
             run.text = run_text
-            _font(run, deck.body_font, deck.caption_pt, deck.soft, italic=True)
+            _font(run, deck.body_font, deck.caption_pt, caption_color or deck.soft, italic=True)
 
 
 def _cell_borders(cell, color: str, width_emu: int = 9525):
@@ -434,6 +444,10 @@ def _chunk(blocks) -> list[dict]:
             slides.append(current)
         elif kind == "orient":
             continue
+        elif kind == "p" and payload[1] and payload[1][0][0].startswith(DIR_MARK):
+            if current is not None:
+                key, _, value = payload[1][0][0][len(DIR_MARK):].strip().partition("=")
+                current[key] = value
         elif kind == "p" and payload[1] and payload[1][0][0].startswith(NOTE_MARK):
             if current is not None:
                 current["notes"].append(payload[1][0][0][len(NOTE_MARK):].strip())
@@ -545,14 +559,24 @@ def _content_area(slide, prs, deck: Deck):
 def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, workdir: Path,
                    warnings: list[str], n: int, footer: str):
     blocks = slide_spec["blocks"]
-    text_blocks = [b for b in blocks if b[0] in ("p", "ul", "ol", "h")]
+    dark = slide_spec.get("tone") == "dark"
+    name = slide_spec.get("layout") or slide_layouts.detect(blocks)
+    if name:
+        if name in slide_layouts.RENDERERS:
+            return slide_layouts.render(name, slide_spec, prs, deck, dark, md_dir, warnings, n, footer)
+        warnings.append(f"slide {n}: unknown layout {name!r}; use one of "
+                        f"{', '.join(slide_layouts.RENDERERS)}")
+    tone = slide_layouts.tone_for(deck, dark)
+    text_blocks = [b for b in blocks if b[0] in ("p", "ul", "ol", "h", "quote")]
     visuals = [b for b in blocks if b[0] in VISUAL]
     items = _text_items(text_blocks)
     bullets = sum(1 for k, *_ in items if k in ("ul", "ol"))
     if bullets > deck.max_bullets:
         warnings.append(f"slide {n}: {bullets} bullets (theme max {deck.max_bullets}); split the slide")
 
-    if visuals or not slide_spec["title"]:
+    if dark:
+        slide = prs.slides.add_slide(_layout(prs, "Title Only Dark"))
+    elif visuals or not slide_spec["title"]:
         slide = prs.slides.add_slide(_layout(prs, "Title Only"))
     else:
         slide = prs.slides.add_slide(_layout(prs, "Title and Content"))
@@ -568,10 +592,10 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
         if body is not None:
             keep.add(1)
             body.left, body.top, body.width, body.height = x, y, w, h
-            _write_text(body.text_frame, items, deck)
+            _write_text(body.text_frame, items, deck, color=tone.fg)
         elif items:
             tb = slide.shapes.add_textbox(x, y, w, h)
-            _write_text(tb.text_frame, items, deck)
+            _write_text(tb.text_frame, items, deck, color=tone.fg)
         if _text_height(items, w, deck) > h / 914400:
             warnings.append(f"slide {n} ({slide_spec['title'] or 'untitled'}): text likely overflows; shorten or split")
     else:
@@ -581,7 +605,7 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
             # a strip; the text goes on top and the visual takes the full width
             th = min(max(Inches(0.6), int(_text_height(items, w, deck) * 914400)), int(h * 0.4))
             tb = slide.shapes.add_textbox(x, y, w, th)
-            _write_text(tb.text_frame, items, deck)
+            _write_text(tb.text_frame, items, deck, color=tone.fg)
             if _text_height(items, w, deck) > h * 0.4 / 914400:
                 warnings.append(f"slide {n} ({slide_spec['title']}): text above the visual likely overflows")
             vx, vw = x, w
@@ -589,7 +613,7 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
         elif items:
             tw = int(w * deck.text_share)
             tb = slide.shapes.add_textbox(x, y, tw, h)
-            _write_text(tb.text_frame, items, deck)
+            _write_text(tb.text_frame, items, deck, color=tone.fg)
             if _text_height(items, tw, deck) > h / 914400:
                 warnings.append(f"slide {n} ({slide_spec['title']}): text beside the visual likely overflows")
             vx, vw = x + tw + deck.gutter, w - tw - deck.gutter
@@ -614,14 +638,14 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
                 src, caption = payload
                 path = (md_dir / Path(src).expanduser()).resolve()
                 if path.exists():
-                    _add_picture(slide, path, box, caption, deck)
+                    _add_picture(slide, path, box, caption, deck, caption_color=tone.sub)
                 else:
                     warnings.append(f"slide {n}: image not found: {src}")
             else:
                 png = _chart_png(payload, theme, deck, box[2], workdir)
                 _add_picture(slide, png, box, "", deck)
     _drop_empty_placeholders(slide, keep)
-    _footer(slide, prs, footer, deck)
+    _footer(slide, prs, footer, deck, inverted=dark)
     return slide
 
 
@@ -654,9 +678,12 @@ def build(md_path: Path, out_path: Path, theme: Theme) -> dict:
     meta = {**theme.defaults, **{str(k): v for k, v in meta.items()}}
     values = {k: str(v) for k, v in meta.items() if v is not None}
     md = NOTE.sub(lambda m: f"\n\n{NOTE_MARK} {' '.join(m.group(1).split())}\n\n", md)
+    md = DIRECTIVE.sub(lambda m: f"\n\n{DIR_MARK}{m.group(1).lower()}={m.group(2).lower()}\n\n", md)
     md = _fill(md, values)
     blocks = parse(md, indent_spaces=int(theme.text.get("indent_spaces", 4)))
     specs = _chunk(blocks)
+    for spec in specs:
+        spec.setdefault("tone", str(meta.get("tone", "light")).lower())
 
     prs = Presentation(str(deck.base))
     _clear_slides(prs)

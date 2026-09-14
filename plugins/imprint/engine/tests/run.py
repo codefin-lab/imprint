@@ -24,7 +24,7 @@ OUT = ENGINE / "tests" / "out"
 
 TEMPLATES = ENGINE / "imprint" / "templates"
 DOCS = sorted(TEMPLATES.glob("*.md"))
-DECKS = [TEMPLATES / "presentation.md"]
+DECKS = [TEMPLATES / "presentation.md", TEMPLATES / "showcase.md"]
 SMOKE = ENGINE / "tests" / "smoke.md"
 
 # names that belong in a brand plugin, never in the public engine
@@ -83,7 +83,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     failures = []
 
-    jobs = [("docx", md, ".docx") for md in DOCS if md.name != "presentation.md"]
+    jobs = [("docx", md, ".docx") for md in DOCS if md not in DECKS]
     jobs += [("docx", SMOKE, ".docx")]
     jobs += [("pptx", md, ".pptx") for md in DECKS]
     for script, md, ext in jobs:

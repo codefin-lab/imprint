@@ -829,6 +829,11 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
                     _keep_with_next(last)
             if payload:
                 _space(last, theme, "list_after", 6)
+        elif kind == "quote":
+            _add_body_paragraph(document, [(t, False) for t in payload.split("\n")], theme,
+                                hard=True, indent=1)
+            for run in document.paragraphs[-1].runs:
+                run.italic = True
         elif kind == "table":
             rows, aligns = payload
             _add_table(document, rows, theme, aligns)

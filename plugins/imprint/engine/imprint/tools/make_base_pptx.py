@@ -35,7 +35,8 @@ from ..theme import Theme
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
-KEEP = ("Title Slide", "Title and Content", "Title Only", "Section Header", "Two Content", "Blank")
+KEEP = ("Title Slide", "Title and Content", "Title Only", "Section Header", "Two Content", "Blank",
+        "Content with Caption")   # renamed to "Title Only Dark" below
 ASPECT = {"16:9": (12192000, 6858000), "4:3": (9144000, 6858000)}
 
 
@@ -327,6 +328,37 @@ def build(theme: Theme) -> Path:
                 _place_picture(prs, cover, cl_path, M, H - Inches(0.25) - cl_h, height=cl_h)
         else:
             _place_picture(prs, master, logo_path, W - M - logo_w, title_top + Inches(0.12), height=logo_h)
+    # a dark twin of Title Only, for slides written with tone: dark
+    dark_cfg = s.get("dark", {}) or {}
+    dl = prs.slide_layouts.get_by_name("Content with Caption")
+    if dl is not None:
+        dl._element.cSld.set("name", "Title Only Dark")
+        for ph in list(dl.placeholders):
+            if ph.placeholder_format.type != PP_PLACEHOLDER.TITLE:
+                ph._element.getparent().remove(ph._element)
+        title_ph = next(ph for ph in dl.placeholders if ph.placeholder_format.type == PP_PLACEHOLDER.TITLE)
+        _place(title_ph, title_x, title_top, title_w, title_h)
+        dk_fg = str(dark_cfg.get("text", paper))
+        _lst_style(title_ph, size.get("title", 26), dk_fg, heading, bold=True,
+                   anchor="ctr" if logo_at == "title" else None)
+        _background(dl, str(dark_cfg.get("background", ink)))
+        dl._element.set("showMasterSp", "0")
+        ld = s.get("logo_dark")
+        ld_path = (theme.source.parent / ld).resolve() if ld else None
+        if ld_path and ld_path.exists() and logo_w:
+            from PIL import Image
+            with Image.open(ld_path) as im:
+                ld_w = int(logo_h * im.size[0] / im.size[1])
+            if logo_at == "title":
+                _place_picture(prs, dl, ld_path, M, title_top + (title_h - logo_h) // 2, height=logo_h)
+                if rule:
+                    rule_h = int(logo_h * 1.25)
+                    _place_rule(prs, dl, M + logo_w + Inches(0.25), title_top + (title_h - rule_h) // 2,
+                                rule_w, rule_h, dk_fg)
+            elif logo_at == "bottom-left":
+                _place_picture(prs, dl, ld_path, M, H - Inches(0.15) - logo_h - Inches(0.05), height=logo_h)
+            else:
+                _place_picture(prs, dl, ld_path, W - M - ld_w, title_top + Inches(0.12), height=logo_h)
     section_logo = s.get("section_logo")
     sl_path = (theme.source.parent / section_logo).resolve() if section_logo else None
     if sl_path and sl_path.exists():

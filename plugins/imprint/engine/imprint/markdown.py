@@ -13,6 +13,7 @@ Returns a flat list of (kind, payload) blocks:
                   'right' (--:), 'center' (:-:) or None (---, the style's own)
     ('gantt',     spec text)
     ('image',     (src, caption))   a line that is only ![caption](file.png)
+    ('quote',     text)             consecutive lines starting with >, joined by newlines
     ('orient',    'landscape' | 'portrait')
     ('hr',        None)
     ('pagebreak', None)
@@ -126,6 +127,14 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
                     rows.append([c.strip() for c in row.strip("|").split("|")])
                 i += 1
             blocks.append(("table", (rows, aligns)))
+            continue
+        elif line.startswith(">"):
+            flush()
+            quote = []
+            while i < len(lines) and lines[i].strip().startswith(">"):
+                quote.append(lines[i].strip()[1:].strip())
+                i += 1
+            blocks.append(("quote", "\n".join(quote)))
             continue
         elif m := IMAGE.match(line):
             flush()

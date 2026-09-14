@@ -219,6 +219,12 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
     caption: 11
     chart: 11
     code: 14                    # code blocks; 12 is too small to project
+    statement: 30               # the sentence on a statement slide
+    stat: 40                    # the number on a stats slide
+    card_title: 16
+    card_body: 13
+    step: 14
+    closing: 40
     footer: 9
   colors:
     ink: "1A202C"
@@ -251,3 +257,18 @@ slides:                         # decks built by build_pptx.py; run tools/make_b
   section_art_alpha: 0.35       # how strong the lines are, 0 to 1
   section_art_corner: top-right # top-right, top-left, bottom-right or bottom-left
   section_art_flip: none        # vertical, horizontal or both: put the art's cut edges on the slide edges
+  logo_dark:                   # a light logo for dark slides; empty = none
+  components:                     # cards, steps, stats, callouts
+    card_fill: "F7FAFC"
+    card_border: "E2E8F0"
+    card_radius_in: 0.08
+    accent: "1A202C"              # numbers, step boxes, the statement bar
+    accents: []                  # strip colours for cards and compare headers, in order; empty = none
+  dark:                           # slides written with tone: dark
+    background: "1A202C"
+    text: "FFFFFF"
+    sub: "A0AEC0"
+    card_fill: "2D3748"
+    card_border: "4A5568"
+    accent: "FFFFFF"
+    on_accent: "1A202C"

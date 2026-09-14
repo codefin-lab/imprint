@@ -41,6 +41,31 @@ Layout is chosen for you: text alone fills the slide; text and a visual share it
 left; a wide visual (a wide picture, a table of four or more columns, a timeline, code) goes
 under the text at full width; a visual alone takes the whole area.
 
+## Layouts
+
+Most slides pick their layout from the shape of their content. Put `<!-- layout: name -->`
+under the `##` heading to choose one yourself.
+
+| Layout | Write | Picked automatically |
+| :-- | :-- | :-- |
+| `statement` | a `>` quote, then an optional source line | when the slide is only that |
+| `stats` | two to four `- **42%** label` items | yes |
+| `cards` | three to six `### Heading` blocks; `### 1 Heading` adds number tiles | yes |
+| `compare` | exactly two `### Heading` blocks | yes |
+| `steps` | a list of `**Step** description`, two to six items | name it |
+| `numbered` | a list of `**Title** description`, then a `>` line for the callout | name it |
+| `media`, `media-left` | text and one picture, the picture right or left | name it |
+| `gallery` | two to six pictures; the alt text is the caption | when the slide is only pictures |
+| `logos` | one picture per logo | name it |
+| `closing` | the last heading and up to five lines under it | name it |
+
+Any slide can sit on the theme's dark slide with `<!-- tone: dark -->`, and `tone: dark` in the
+front matter makes dark the default. `imprint new showcase` starts a deck that uses every
+layout, with the Markdown for each.
+
+The build warns past each layout's limits: six cards, six steps, four numbers, six numbered
+items, five closing lines. More than that is two slides.
+
 ## Diagrams on slides
 
 Ask the diagram-design skill for the `slide-16x9` preset (1280 by 720, presentation type
@@ -94,6 +119,9 @@ imprint make-base-pptx --theme <name or folder>
 | `footer_align`, `footer_last_line` | left or right; `ink` sets the last line darker than the rest |
 | `footer_badge`, `footer_badge_invert` | a round badge before the footer, and its version for dark slides |
 | `footer_bottom_in`, `footer_h_in` | how far the footer sits above the edge, and the space kept clear for it |
+| `size.statement`, `size.stat`, `size.card_title`, `size.card_body`, `size.step` | type sizes inside the layouts |
+| `components` | card fill, border and corner radius; `accent` for numbers and step boxes; `accents` to colour cards, steps and stats in order |
+| `dark`, `logo_dark` | the colours of `tone: dark` slides, and the light logo they carry |
 | `slide_number`, `max_bullets`, `bullet_char` | slide numbers, the bullet warning limit, the bullet |
 
 Line art is usually a crop of a larger drawing, so its lines stop at the edges it was cut on.

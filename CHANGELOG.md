@@ -3,6 +3,18 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.3.0 (2026-09-14)
+
+- Slides: ten layouts beyond text and a picture: statement, stats, cards, compare, steps,
+  numbered with a callout, media (picture right or left), gallery, logos and closing. Content
+  with an unmistakable shape picks its own; `<!-- layout: name -->` chooses one.
+- Slides: `<!-- tone: dark -->` puts any slide on a dark twin of Title Only ("Title Only Dark"
+  in the master, with `logo_dark`); `tone: dark` in the front matter makes it the default.
+- Themes: `components` (card fill, border, radius, accent, `accents` in order), `dark`
+  colours, and sizes for the layouts. Regenerate a theme's master with `imprint make-base-pptx`.
+- Markdown: `>` blockquotes. Documents set them as an indented italic paragraph.
+- Templates: `showcase`, a deck that uses every layout.
+
 ## 0.2.6 (2026-09-11)
 
 - The slides skill documents every `slides:` theme key in one table, and its checks now cover
