@@ -221,6 +221,7 @@ items:
 
 ```widget
 widget: devices
+frame: iphone
 items:
   - {image: showcase-screen-1.png, label: Apply, note: One form}
   - {image: showcase-screen-2.png, label: Verify, note: Face and ID}

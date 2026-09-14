@@ -65,6 +65,7 @@ FIELDS = {
     "x": "a matrix's horizontal axis: [low end, high end], or its name",
     "y": "a matrix's vertical axis: [low end, high end], or its name",
     "quadrants": "a matrix's four quadrant names: top left, top right, bottom left, bottom right",
+    "frame": "devices: iphone, iphone-black, iphone-white, iphone-desert, or an installed frame picture (imprint devices)",
 }
 
 ITEM_FIELDS = {
@@ -1058,70 +1059,198 @@ def _features(ctx, spec: Spec, box):
     return need * rows + gapy * (rows - 1) > h
 
 
-def _devices(ctx, spec: Spec, box):
-    """Screenshots in phone frames, drawn from shapes, with a caption under each."""
-    slide, deck, look = ctx["slide"], ctx["deck"], ctx["look"]
+FRAMES = {
+    # rim gradient (edge, highlight, edge), body, buttons: the finishes iPhone Pro models come in
+    "iphone": ("8E8B86", "D9D6D0", "7A7772", "0B0B0C", "9C9994"),          # natural titanium
+    "iphone-black": ("3A3B3D", "6E7073", "2E2F31", "050506", "4A4B4E"),
+    "iphone-white": ("C9C9C6", "F4F4F2", "BDBDBA", "0B0B0C", "D6D6D3"),
+    "iphone-desert": ("B39C84", "E3D2BF", "A08A73", "0B0B0C", "BFA890"),
+}
+
+
+def _grad(shape, stops, angle=0):
+    fill = shape.fill
+    fill.gradient()
+    fill.gradient_angle = angle
+    # python-pptx starts with two stops; three and more need the XML
+    lst = shape._element.spPr.find(qn("a:gradFill")).find(qn("a:gsLst"))
+    for old in list(lst):
+        lst.remove(old)
+    for pos, colour in stops:
+        g = OxmlElement("a:gs")
+        g.set("pos", str(int(pos * 100000)))
+        c = OxmlElement("a:srgbClr")
+        c.set("val", colour)
+        g.append(c)
+        lst.append(g)
+
+
+def _screen_picture(slide, path, sx, sy, sw, sh, radius_share, label):
+    """A screenshot cropped to fill the screen (keeping its top), with rounded corners."""
     S = _S()
+    pic = slide.shapes.add_picture(str(path), int(sx), int(sy), int(sw), int(sh))
+    iw, ih = S._picture_size(path)
+    want, have = sw / sh, iw / ih
+    if have > want:
+        trim = (1 - want / have) / 2
+        pic.crop_left = pic.crop_right = trim
+    else:
+        pic.crop_bottom = 1 - have / want
+    geom = pic._element.spPr.find(qn("a:prstGeom"))
+    geom.set("prst", "roundRect")
+    av = geom.find(qn("a:avLst"))
+    if av is None:
+        av = OxmlElement("a:avLst")
+        geom.append(av)
+    gd = OxmlElement("a:gd")
+    gd.set("name", "adj")
+    gd.set("fmla", f"val {int(radius_share * 100000)}")
+    av.append(gd)
+    if label:
+        pic._element.nvPicPr.cNvPr.set("descr", str(label))
+    return pic
+
+
+def _draw_iphone(ctx, px, top, pw, ph, finish, path, label):
+    """An iPhone Pro drawn from shapes, to its real proportions (71.5 by 149.6 mm)."""
+    slide, look = ctx["slide"], ctx["look"]
+    edge, shine, edge2, body, button = FRAMES[finish]
+    L = _L()
+    bt = max(int(pw * 0.014), 1)                          # how far a button stands out
+    # buttons first, so the rim covers their inner half
+    for side, y0, length in (("l", 0.195, 0.045), ("l", 0.265, 0.075), ("l", 0.355, 0.075),
+                             ("r", 0.29, 0.12), ("r", 0.555, 0.06)):
+        bx = px - bt if side == "l" else px + pw - bt
+        L._box(slide, bx, top + int(ph * y0), bt * 2, int(ph * length), fill=button, radius=0.02)
+    rim = L._box(slide, px, top, pw, ph, fill=edge, radius=pw / EMU_IN * 0.165)
+    _grad(rim, [(0, edge), (0.5, shine), (1, edge2)], angle=0)
+    band = int(pw * 0.018)                                # the metal band
+    inner = L._box(slide, px + band, top + band, pw - 2 * band, ph - 2 * band, fill=body,
+                   radius=(pw - 2 * band) / EMU_IN * 0.15)
+    bez = int(pw * 0.052)                                 # band plus the black border
+    sx, sy, sw, sh = px + bez, top + bez, pw - 2 * bez, ph - 2 * bez
+    radius = 0.125 * sw / min(sw, sh)
+    if path is not None:
+        _screen_picture(slide, path, sx, sy, sw, sh, radius, label)
+    else:
+        L._box(slide, sx, sy, sw, sh, fill=look.track, radius=sw / EMU_IN * 0.125)
+    iw, ih = int(sw * 0.31), int(sw * 0.092)              # the Dynamic Island
+    L._box(slide, sx + (sw - iw) // 2, sy + int(sw * 0.028), iw, ih, fill="000000", radius=ih / EMU_IN / 2)
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")
+
+
+def frame_dirs(deck=None) -> list:
+    """Where frame pictures are looked for: the theme's `device_frames` folder, then the
+    person's own folder (IMPRINT_DEVICE_FRAMES, or ~/.imprint/device-frames). Frames under a
+    licence that forbids sharing them, such as Apple's product bezels, belong in the second."""
+    import os
+    from pathlib import Path
+    dirs = []
+    folder = (deck.theme.slides or {}).get("device_frames") if deck is not None else None
+    if folder:
+        dirs.append((deck.dir / folder).resolve())
+    dirs.append(Path(os.environ.get("IMPRINT_DEVICE_FRAMES", "~/.imprint/device-frames")).expanduser())
+    return [d for d in dirs if d.is_dir()]
+
+
+def frame_files(deck=None) -> dict:
+    """{slug: path}; a theme's frame wins over a personal one of the same name. Only portrait
+    frames are offered, and `-portrait` may be left off the name."""
+    out = {}
+    for d in reversed(frame_dirs(deck)):
+        for png in sorted(d.rglob("*.png")):
+            slug = _slug(png.stem)
+            if "landscape" in slug:
+                continue
+            out[slug] = png
+            if slug.endswith("-portrait"):
+                out[slug[: -len("-portrait")]] = png
+    return out
+
+
+def _frame_image(path):
+    """A frame picture with a transparent screen: (size, screen box in pixels)."""
+    from PIL import Image
+    with Image.open(path) as im:
+        im = im.convert("RGBA")
+        w, h = im.size
+        alpha = im.getchannel("A")
+        cx, cy = w // 2, h // 2
+        if alpha.getpixel((cx, cy)) > 20:
+            return (w, h), None
+        # walk out from the centre along each axis to the first opaque pixel
+        left = next((x for x in range(cx, -1, -1) if alpha.getpixel((x, cy)) > 20), 0) + 1
+        right = next((x for x in range(cx, w) if alpha.getpixel((x, cy)) > 20), w) - 1
+        # measure the height off-centre: a camera island sits over the middle of the top edge
+        col = left + (right - left) // 5
+        top_ = next((y for y in range(cy, -1, -1) if alpha.getpixel((col, y)) > 20), 0) + 1
+        bottom = next((y for y in range(cy, h) if alpha.getpixel((col, y)) > 20), h) - 1
+        return (w, h), (left, top_, right - left + 1, bottom - top_ + 1)
+
+
+def _devices(ctx, spec: Spec, box):
+    """Screenshots in phone frames, captioned. `frame` picks the finish of the drawn iPhone,
+    or names a frame picture (PNG with a transparent screen) in the theme's `device_frames`."""
+    slide, deck, look = ctx["slide"], ctx["deck"], ctx["look"]
     x, y, w, h = box
     n = len(spec.items)
+    frame = str(spec.get("frame") or "iphone").lower()
+    picture = None
+    if frame not in FRAMES:
+        found = frame_files(deck)
+        cand = found.get(_slug(frame)) or found.get(_slug(frame) + "-portrait")
+        if cand is not None:
+            size, screen = _frame_image(cand)
+            if screen is None:
+                ctx["warnings"].append(f"{ctx['where']}: frame {cand.name} has no transparent screen at its centre")
+            else:
+                picture = (cand, size, screen)
+        if picture is None:
+            ctx["warnings"].append(f"{ctx['where']}: no device frame {frame!r}; choose from "
+                                   f"{', '.join(list(FRAMES) + sorted(found))} (imprint devices lists them)")
+            frame = "iphone"
+    ratio = (picture[1][1] / picture[1][0]) if picture else 149.6 / 71.5
     cap = Inches(0.62) if any(it.get("label") or it.get("note") for it in spec.items) else 0
     ph = h - cap
-    pw = int(ph / 2.05)
-    gap = Inches(0.45)
+    pw = int(ph / ratio)
+    gap = Inches(0.55)
     if pw * n + gap * (n - 1) > w:
         pw = (w - gap * (n - 1)) // n
-        ph = int(pw * 2.05)
+        ph = int(pw * ratio)
     total = pw * n + gap * (n - 1)
     left = x + (w - total) // 2
     top = y + max(0, (h - ph - cap) // 2)
-    frame = "1A202C"
     for i, it in enumerate(spec.items):
         px = left + i * (pw + gap)
-        body = _L()._box(slide, px, top, pw, ph, fill=frame, radius=pw / EMU_IN * 0.16)
-        bez = int(pw * 0.045)
-        sx, sy, sw, sh = px + bez, top + bez, pw - 2 * bez, ph - 2 * bez
-        src = it.get("image")
-        placed = False
-        if src:
-            path = (ctx["md_dir"] / str(src)).expanduser().resolve()
-            if path.exists():
-                pic = slide.shapes.add_picture(str(path), int(sx), int(sy), int(sw), int(sh))
-                iw, ih = S._picture_size(path)
-                want = sw / sh
-                have = iw / ih
-                if have > want:                     # too wide: trim the sides
-                    trim = (1 - want / have) / 2
-                    pic.crop_left = pic.crop_right = trim
-                else:                               # too tall: trim the bottom, keep the top of the screen
-                    pic.crop_bottom = 1 - have / want
-                geom = pic._element.spPr.find(qn("a:prstGeom"))
-                if geom is not None:
-                    geom.set("prst", "roundRect")
-                    av = geom.find(qn("a:avLst"))
-                    if av is None:
-                        av = OxmlElement("a:avLst")
-                        geom.append(av)
-                    gd = OxmlElement("a:gd")
-                    gd.set("name", "adj")
-                    gd.set("fmla", f"val {int(pw * 0.13 / min(sw, sh) * 100000)}")
-                    av.append(gd)
-                if it.get("label"):
-                    pic._element.nvPicPr.cNvPr.set("descr", str(it["label"]))
-                placed = True
+        path = None
+        if it.get("image"):
+            cand = (ctx["md_dir"] / str(it["image"])).expanduser().resolve()
+            if cand.exists():
+                path = cand
             else:
-                ctx["warnings"].append(f"{ctx['where']}: image not found: {src}")
-        if not placed:
-            _L()._box(slide, sx, sy, sw, sh, fill=look.track, radius=pw / EMU_IN * 0.12)
-        notch_w = int(pw * 0.3)
-        _L()._box(slide, px + (pw - notch_w) // 2, top + bez + int(pw * 0.03), notch_w, int(pw * 0.07),
-                  fill=frame, radius=0.2)
+                ctx["warnings"].append(f"{ctx['where']}: image not found: {it['image']}")
+        if picture:
+            fpath, (fw, fh), (l_, t_, sw_, sh_) = picture
+            k = pw / fw
+            sx, sy, sw, sh = px + int(l_ * k), top + int(t_ * k), int(sw_ * k), int(sh_ * k)
+            if path is not None:
+                _screen_picture(slide, path, sx, sy, sw, sh, 0.13 * sw / min(sw, sh), it.get("label"))
+            else:
+                _L()._box(slide, sx, sy, sw, sh, fill=look.track)
+            slide.shapes.add_picture(str(fpath), int(px), int(top), int(pw), int(ph))
+        else:
+            _draw_iphone(ctx, px, top, pw, ph, frame, path, it.get("label"))
         if cap:
             paras = []
             if it.get("label"):
                 paras.append((str(it["label"]), look.label_pt + 2, look.fg, True, look.heading_font))
             if it.get("note"):
                 paras.append((str(it["note"]), look.note_pt, look.sub, False, None))
-            _txt(slide, px - gap // 2, top + ph + Inches(0.12), pw + gap, cap, paras, deck, align=PP_ALIGN.CENTER, space=1)
+            _txt(slide, px - gap // 2, top + ph + Inches(0.14), pw + gap, cap, paras, deck,
+                 align=PP_ALIGN.CENTER, space=1)
     return False
 
 

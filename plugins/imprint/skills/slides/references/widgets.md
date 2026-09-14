@@ -57,6 +57,7 @@ note: Branch and app channels   # optional, one line under it: source, period
 | `columns` | how many tiles, rings or cards sit side by side |
 | `center` | the text in the middle of a hub or cycle |
 | `x`, `y`, `quadrants` | a matrix's axes (`[low end, high end]` or a name) and its four quadrant names |
+| `frame` | devices: a drawn phone (`iphone`, `iphone-black`, `iphone-white`, `iphone-desert`) or an installed frame picture |
 
 Inside `items`, each item takes:
 
@@ -142,6 +143,24 @@ icon out with a warning that suggests close matches.
   in the header. A document drops the `{...}`.
 - A theme can add its own icons: `slides.icons` names a folder of SVG files drawn the same way
   (24 by 24 grid, strokes, no fills); a name there wins over the bundled one.
+
+## Phone frames
+
+`devices` puts each screenshot in a phone. The screenshot is cropped to fill the screen, keeping
+its top, so export screens at the phone's resolution or taller.
+
+- **Drawn frames**, always available: an iPhone Pro to its real proportions, drawn from shapes,
+  in `iphone` (natural titanium), `iphone-black`, `iphone-white` and `iphone-desert`.
+- **Frame pictures**: any PNG with a transparent screen. Imprint finds the screen itself and
+  places the screenshot under the frame. It looks in the theme's `slides.device_frames` folder,
+  then in the person's own folder, `~/.imprint/device-frames` (or `IMPRINT_DEVICE_FRAMES`).
+  `imprint devices` lists what is installed; the name is the file name in lower case with
+  hyphens, without `Portrait`: `frame: iphone-17-pro-silver`.
+- **Apple's product bezels** (developer.apple.com/design/resources) are the real frames, but
+  Apple's licence forbids sharing them, putting them in a repository or embedding them in
+  software, and allows them only in mock-ups of apps that run only on Apple platforms. Each
+  person installs them in their own folder; never commit them. For an app that also ships on
+  Android, use a drawn frame.
 
 ## Limits the build warns about
 

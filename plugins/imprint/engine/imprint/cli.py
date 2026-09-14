@@ -6,6 +6,7 @@
     imprint themes                   list the themes that ship with the engine, with their folders
     imprint widgets [name]           list the widgets; with a name, print its example block
     imprint icons <word> [...]       find icons by name or meaning
+    imprint devices                  list the phone frames a devices widget can use
     imprint make-base-pptx --theme <name or folder>    regenerate a theme's slide master
     imprint make-base-docx ...       rebuild a theme's base.docx from a Word export
     imprint doctor                   check the installation and look for a newer release
@@ -106,6 +107,23 @@ def _icons(argv: list[str]) -> int:
     return 0
 
 
+def _devices(argv: list[str]) -> int:
+    from .widgets import FRAMES, frame_dirs, frame_files
+    print("Drawn frames (always available):")
+    for name in FRAMES:
+        print(f"  {name}")
+    files = frame_files()
+    names = sorted(n for n in files if not n.endswith("-portrait"))
+    where = ", ".join(str(d) for d in frame_dirs()) or "~/.imprint/device-frames (not created yet)"
+    print(f"\nFrame pictures in {where}:")
+    for name in names:
+        print(f"  {name}")
+    if not names:
+        print("  none. Put PNG frames with a transparent screen there; a brand skill may offer a script")
+    print("\nA theme's own `device_frames` folder adds to these when a deck is built.")
+    return 0
+
+
 def _latest_release() -> str | None:
     """The newest vX.Y.Z tag, from the GitHub API: plain HTTPS, so no git credentials
     (a stale token for another account would turn even a public read into a 403)."""
@@ -178,6 +196,7 @@ COMMANDS = {
     "themes": _themes,
     "widgets": _widgets,
     "icons": _icons,
+    "devices": _devices,
     "make-base-pptx": lambda a: _run("tools.make_base_pptx", a),
     "make-base-docx": lambda a: _run("tools.make_base", a),
     "boost-cover-art": lambda a: _run("tools.boost_cover_art", a),

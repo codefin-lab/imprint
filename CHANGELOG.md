@@ -3,6 +3,17 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.6.0 (2026-09-14)
+
+- Devices: the drawn phone is now an iPhone Pro to its real proportions, with a metal band,
+  black border, Dynamic Island and side buttons, in `iphone`, `iphone-black`, `iphone-white` and
+  `iphone-desert` (the new `frame` field).
+- Devices: frame pictures. Any PNG with a transparent screen works; Imprint finds the screen and
+  places the screenshot under the frame. Frames are looked up in the theme's
+  `slides.device_frames`, then in `~/.imprint/device-frames` (or `IMPRINT_DEVICE_FRAMES`), for
+  frames such as Apple's product bezels that each person installs and may not share.
+- `imprint devices` lists the frames available.
+
 ## 0.5.0 (2026-09-14)
 
 - Icons: Lucide 1.46.0 (1,838 icons, ISC licence) bundled with the engine and drawn as native

@@ -94,6 +94,10 @@ items:
 `icon: name`; a `###` heading on a cards or compare slide takes `{icon=name}` at its end.
 `imprint icons <word>` finds names; https://lucide.dev/icons shows them all.
 
+**Phone frames**: `devices` draws an iPhone Pro from shapes, or uses a frame picture installed
+in the theme or in `~/.imprint/device-frames` (`imprint devices` lists them). Apple's real
+bezels may be installed there by each person, never shared; see `references/widgets.md`.
+
 `imprint widgets` lists them, `imprint widgets <name>` prints an example, and
 `imprint new widgets` starts a deck that uses every one. A mistake in the YAML (an unknown
 widget or field, a value that is not a number) becomes a warning naming the slide, and the
@@ -157,6 +161,7 @@ imprint make-base-pptx --theme <name or folder>
 | `components` | card fill, border and corner radius; `accent` for numbers and step boxes; `accents` to colour cards, steps and stats in order |
 | `dark`, `logo_dark` | the colours of `tone: dark` slides, and the light logo they carry |
 | `icons` | a folder of the theme's own SVG icons, added to the bundled set |
+| `device_frames` | a folder of frame pictures (PNG, transparent screen) the theme may share |
 | `widgets`, `size.widget_value`, `size.widget_label` | widget colours (palette, highlight, muted, track, grid, positive, negative, and a `dark` set) and type |
 | `slide_number`, `max_bullets`, `bullet_char` | slide numbers, the bullet warning limit, the bullet |
 
