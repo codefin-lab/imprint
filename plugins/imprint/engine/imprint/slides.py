@@ -41,7 +41,7 @@ from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Emu, Inches, Pt
 
 from .gantt import parse_spec, render_png
-from .markdown import inline_spans, parse, split_front_matter
+from .markdown import inline_spans, parse, split_attrs, split_front_matter
 from .render import _fill, _is_banner
 from .theme import Theme
 from . import slide_layouts, widgets
@@ -219,7 +219,7 @@ def _text_items(blocks) -> list[tuple]:
             for level, item_kind, text, number in payload:
                 items.append((item_kind, text, level, number if item_kind == "ol" else None))
         elif kind == "h":
-            items.append(("lead", payload[1], 0, None))
+            items.append(("lead", split_attrs(payload[1])[0], 0, None))
         elif kind == "quote":
             items.append(("p", payload.replace("\n", " "), 0, None))
     return items
@@ -432,11 +432,11 @@ def _chunk(blocks) -> list[dict]:
     toc_at = None
     for kind, payload in blocks:
         if kind == "h" and payload[0] == 1:
-            current = {"kind": "section", "title": payload[1], "blocks": [], "notes": []}
+            current = {"kind": "section", "title": split_attrs(payload[1])[0], "blocks": [], "notes": []}
             slides.append(current)
-            sections.append(payload[1])
+            sections.append(current["title"])
         elif kind == "h" and payload[0] == 2:
-            current = {"kind": "content", "title": payload[1], "blocks": [], "notes": []}
+            current = {"kind": "content", "title": split_attrs(payload[1])[0], "blocks": [], "notes": []}
             slides.append(current)
         elif kind in ("hr", "pagebreak"):
             title = current["title"] if current and current["kind"] == "content" else ""
@@ -640,7 +640,7 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
                                     f"shorten it or split the slide")
             elif kind == "widget":
                 widgets.render(slide, payload, box, deck, tone, warnings,
-                               f"slide {n} ({slide_spec['title'] or 'untitled'})")
+                               f"slide {n} ({slide_spec['title'] or 'untitled'})", md_dir=md_dir)
             elif kind == "image":
                 src, caption = payload
                 path = (md_dir / Path(src).expanduser()).resolve()

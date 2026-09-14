@@ -262,6 +262,21 @@ def _intro(slide, box, intro_blocks, deck, tone, warnings, n, title):
     return x, y + need + gap, w, h - need - gap
 
 
+def _attrs(title):
+    from .markdown import split_attrs
+    return split_attrs(title)
+
+
+def _card_icon(ctx, name, x, y, size, colour):
+    from . import icons
+    extra = (ctx["deck"].theme.slides or {}).get("icons")
+    extra = str((ctx["deck"].dir / extra).resolve()) if extra else None
+    if icons.add(ctx["slide"], name, x, y, size, colour, extra=extra) is None:
+        near = icons.suggest(name)
+        ctx["warnings"].append(f"slide {ctx['n']} ({ctx['title']}): no icon {name!r}"
+                               + (f"; try {', '.join(near)}" if near else ""))
+
+
 def _warn_fit(warnings, n, title, what, need, have):
     if need > have:
         warnings.append(f"slide {n} ({title}): {what} needs about {need / EMU_IN:.1f} in, "
@@ -307,27 +322,29 @@ def cards(ctx):
     pad = Inches(0.22)
     tw = cw - 2 * pad
     S = _s()
-    numbered = all(NUMBERED_TITLE.match(t) for t, _ in groups)
+    numbered = all(NUMBERED_TITLE.match(_attrs(t)[0]) for t, _ in groups)
+    iconic = any(_attrs(t)[1].get("icon") for t, _ in groups)
     sq = Inches(0.36)
-    # a number tile carries the card's colour, so it replaces the strip
-    head = (sq + Inches(0.12)) if numbered else (Inches(0.2) if tone.accents else 0)
+    # a number tile or an icon carries the card's colour, so it replaces the strip
+    head = (sq + Inches(0.12)) if numbered else (Inches(0.46) + Inches(0.14)) if iconic else (Inches(0.2) if tone.accents else 0)
     prepared = []
     for title, body in groups:
         num = None
+        title, attrs = _attrs(title)
         if numbered:
             num, title = NUMBERED_TITLE.match(title).groups()
         items = S._text_items(body)
         th = _height([(title, tone.sizes["card_title"])], tw)
         bh = _items_height(items, tw, tone.sizes["card_body"]) if items else 0
-        prepared.append((num, title, items, th, bh))
-    need = max(pad * 2 + head + th + Inches(0.08) + bh for _, _, _, th, bh in prepared)
+        prepared.append((num, title, items, th, bh, attrs.get("icon")))
+    need = max(pad * 2 + head + th + Inches(0.08) + bh for _, _, _, th, bh, _ in prepared)
     room = (h - gap * (rows - 1)) // rows
     ch = min(room, max(need, Inches(1.5)))
     if need > room:
         ctx["warnings"].append(f"slide {ctx['n']} ({ctx['title']}): card text needs about "
                                f"{need / EMU_IN:.1f} in, a card has {room / EMU_IN:.1f}; shorten or split")
     top = y + max(0, (h - (ch * rows + gap * (rows - 1))) // 2)
-    for i, (num, title, items, th, bh) in enumerate(prepared):
+    for i, (num, title, items, th, bh, icon) in enumerate(prepared):
         cx, cy = x + (i % cols) * (cw + gap), top + (i // cols) * (ch + gap)
         _box(slide, cx, cy, cw, ch, fill=tone.card_fill, line=tone.card_border, radius=tone.radius, line_w=0.75)
         inner_y = cy + pad
@@ -339,6 +356,10 @@ def cards(ctx):
                   "FFFFFF" if strip else tone.on_accent, True, deck.heading_font)],
                   deck, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, space=0)
             inner_y += sq + Inches(0.12)
+        elif iconic:
+            if icon:
+                _card_icon(ctx, icon, tx, inner_y, Inches(0.46), strip or tone.accent)
+            inner_y += Inches(0.46) + Inches(0.14)
         elif strip:
             _box(slide, tx, inner_y, Inches(0.5), Inches(0.06), fill=strip)
             inner_y += Inches(0.2)
@@ -363,8 +384,11 @@ def compare(ctx):
     S = _s()
     for i, (title, body) in enumerate(groups):
         cx = x + i * (cw + gap)
+        title, attrs = _attrs(title)
         edge = tone.strip(i) or (tone.accent if i == 0 else tone.sub)
         _box(slide, cx, y, cw, hh, line=edge, radius=tone.radius, line_w=2)
+        if attrs.get("icon"):
+            _card_icon(ctx, attrs["icon"], cx + Inches(0.2), y + (hh - Inches(0.34)) // 2, Inches(0.34), edge)
         _text(slide, cx, y, cw, hh, [(title, tone.sizes["card_title"] + 2, tone.fg, True, deck.heading_font)],
               deck, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, space=0)
         items = S._text_items(body)
@@ -377,7 +401,7 @@ def compare(ctx):
 def _step_items(blocks):
     grouped = split_groups(blocks)
     if grouped:
-        return grouped[0], [(t, _para_text(b) or " ".join(it[2] for it in
+        return grouped[0], [(_attrs(t)[0], _para_text(b) or " ".join(it[2] for it in
                              next((p for k, p in b if k in ("ul", "ol")), []))) for t, b in grouped[1]]
     lists = [p for k, p in blocks if k in ("ul", "ol")]
     if not lists:

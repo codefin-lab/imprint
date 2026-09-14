@@ -121,6 +121,7 @@ imprint new presentation deck.md && imprint pptx deck.md --pdf
 imprint new showcase showcase.md          # every slide layout, and the Markdown behind it
 imprint new widgets widgets.md            # every chart and infographic widget
 imprint widgets                           # list the widgets; imprint widgets kpi prints an example
+imprint icons wallet                      # find an icon for a widget item or a card
 imprint doctor
 ```
 
@@ -156,3 +157,6 @@ before a pull request.
 ## License
 
 MIT. See `LICENSE`.
+
+The bundled icons are [Lucide](https://lucide.dev) (ISC licence), with their licence in
+`plugins/imprint/engine/imprint/icons/lucide/LICENSE`.

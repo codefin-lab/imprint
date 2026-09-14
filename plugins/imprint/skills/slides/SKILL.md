@@ -52,7 +52,7 @@ under the `##` heading to choose one yourself.
 | :-- | :-- | :-- |
 | `statement` | a `>` quote, then an optional source line | when the slide is only that |
 | `stats` | two to four `- **42%** label` items | yes |
-| `cards` | three to six `### Heading` blocks; `### 1 Heading` adds number tiles | yes |
+| `cards` | three to six `### Heading` blocks; `### 1 Heading` adds number tiles, `### Heading {icon=wallet}` an icon | yes |
 | `compare` | exactly two `### Heading` blocks | yes |
 | `steps` | a list of `**Step** description`, two to six items | name it |
 | `numbered` | a list of `**Title** description`, then a `>` line for the callout | name it |
@@ -88,7 +88,11 @@ items:
 | Kind | Widgets |
 | :-- | :-- |
 | Native charts, data editable in Excel | `column`, `bar`, `stacked-column`, `stacked-bar`, `line`, `area`, `pie`, `doughnut`, `waterfall` |
-| Infographics from shapes | `kpi`, `progress`, `rings`, `funnel`, `timeline`, `cycle`, `hub`, `nested`, `waffle`, `matrix` |
+| Infographics from shapes | `kpi`, `progress`, `rings`, `funnel`, `timeline`, `cycle`, `hub`, `nested`, `waffle`, `matrix`, `features`, `devices` |
+
+**Icons**: 1,838 Lucide icons (ISC licence) drawn as native shapes. Widget items take
+`icon: name`; a `###` heading on a cards or compare slide takes `{icon=name}` at its end.
+`imprint icons <word>` finds names; https://lucide.dev/icons shows them all.
 
 `imprint widgets` lists them, `imprint widgets <name>` prints an example, and
 `imprint new widgets` starts a deck that uses every one. A mistake in the YAML (an unknown
@@ -152,6 +156,7 @@ imprint make-base-pptx --theme <name or folder>
 | `size.statement`, `size.stat`, `size.card_title`, `size.card_body`, `size.step` | type sizes inside the layouts |
 | `components` | card fill, border and corner radius; `accent` for numbers and step boxes; `accents` to colour cards, steps and stats in order |
 | `dark`, `logo_dark` | the colours of `tone: dark` slides, and the light logo they carry |
+| `icons` | a folder of the theme's own SVG icons, added to the bundled set |
 | `widgets`, `size.widget_value`, `size.widget_label` | widget colours (palette, highlight, muted, track, grid, positive, negative, and a `dark` set) and type |
 | `slide_number`, `max_bullets`, `bullet_char` | slide numbers, the bullet warning limit, the bullet |
 

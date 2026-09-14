@@ -109,6 +109,19 @@ def main() -> int:
     if not same:
         failures.append("versions disagree or ensure-engine.sh copies differ: " + str(written))
 
+    sys.path.insert(0, str(ENGINE))
+    from imprint import icons
+    broken = []
+    for name, nodes in icons.bundled().items():
+        try:
+            if not icons.ops_for(nodes):
+                broken.append(name)
+        except Exception:      # noqa: BLE001 - any failure is a broken icon
+            broken.append(name)
+    print(f"  {'ok' if not broken else 'FAILED':18} {len(icons.bundled())} icons draw")
+    if broken:
+        failures.append(f"icons that do not draw: {', '.join(broken[:10])}")
+
     code, log = new_from_template(OUT)
     print(f"  {'ok' if code == 0 else 'FAILED':18} imprint new copies a template and its picture")
     if code:

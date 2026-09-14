@@ -111,9 +111,9 @@ Headline figures, progress and shares, drawn from shapes.
 ```widget
 widget: kpi
 items:
-  - {label: Accounts opened, value: "12,400", delta: +18%, note: vs 2025}
-  - {label: Days to open, value: 1, delta: -4, note: was 5}
-  - {label: Customer rating, value: 4.6, delta: +0.8, note: out of 5}
+  - {icon: user-plus, label: Accounts opened, value: "12,400", delta: +18%, note: vs 2025}
+  - {icon: clock, label: Days to open, value: 1, delta: -4, note: was 5}
+  - {icon: star, label: Customer rating, value: 4.6, delta: +0.8, note: out of 5}
 ```
 
 ## Build is on track; testing starts next month
@@ -122,10 +122,10 @@ items:
 widget: progress
 suffix: "%"
 items:
-  - {label: Requirements, value: 100}
-  - {label: Build, value: 72, note: 18 of 25 screens}
-  - {label: Testing, value: 35}
-  - {label: Rollout, value: 0}
+  - {icon: clipboard-list, label: Requirements, value: 100}
+  - {icon: code, label: Build, value: 72, note: 18 of 25 screens}
+  - {icon: flask-conical, label: Testing, value: 35}
+  - {icon: rocket, label: Rollout, value: 0}
 ```
 
 ## Four in five applications need no one to touch them
@@ -171,10 +171,10 @@ items:
 ```widget
 widget: timeline
 items:
-  - {when: Q1, label: Discovery, note: Interviews and data, status: done}
-  - {when: Q2, label: Build, note: App and staff screen, status: done}
-  - {when: Q3, label: Pilot, note: Two branches, status: now}
-  - {when: Q4, label: Rollout, note: Every branch, status: next}
+  - {when: Q1, icon: search, label: Discovery, note: Interviews and data, status: done}
+  - {when: Q2, icon: code, label: Build, note: App and staff screen, status: done}
+  - {when: Q3, icon: flag, label: Pilot, note: Two branches, status: now}
+  - {when: Q4, icon: rocket, label: Rollout, note: Every branch, status: next}
 ```
 
 ## Strategy is a loop, not a plan on a shelf
@@ -183,10 +183,10 @@ items:
 widget: cycle
 center: Strategy
 items:
-  - {label: Scan, note: Markets and risks}
-  - {label: Formulate, note: Goals and choices}
-  - {label: Implement, note: Plans and budget}
-  - {label: Evaluate, note: Measure and adjust}
+  - {icon: radar, label: Scan, note: Markets and risks}
+  - {icon: lightbulb, label: Formulate, note: Goals and choices}
+  - {icon: hammer, label: Implement, note: Plans and budget}
+  - {icon: chart-line, label: Evaluate, note: Measure and adjust}
 ```
 
 ## One platform serves every team
@@ -197,11 +197,34 @@ items:
 widget: hub
 center: Platform
 items:
-  - {label: Onboarding}
-  - {label: Identity}
-  - {label: Screening}
-  - {label: Accounts}
-  - {label: Reports}
+  - {icon: user-plus, label: Onboarding}
+  - {icon: scan-face, label: Identity}
+  - {icon: shield-check, label: Screening}
+  - {icon: landmark, label: Accounts}
+  - {icon: file-chart-column, label: Reports}
+```
+
+## The app does what customers asked for most
+
+```widget
+widget: features
+items:
+  - {icon: zap, label: Open in minutes, note: "One form, no branch visit"}
+  - {icon: scan-face, label: Verify with your face, note: Checked against the national ID service}
+  - {icon: shield-check, label: Safe by design, note: Bank-grade encryption end to end}
+  - {icon: wallet, label: No monthly fee, note: Free for personal accounts}
+  - {icon: bell, label: Instant alerts, note: Every payment as it happens}
+  - {icon: headset, label: Help when needed, note: A person answers in two minutes}
+```
+
+## Three screens carry the whole journey
+
+```widget
+widget: devices
+items:
+  - {image: showcase-screen-1.png, label: Apply, note: One form}
+  - {image: showcase-screen-2.png, label: Verify, note: Face and ID}
+  - {image: showcase-screen-3.png, label: Track, note: Every step live}
 ```
 
 ## A two billion baht share is within reach

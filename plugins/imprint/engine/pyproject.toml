@@ -35,4 +35,4 @@ version = { attr = "imprint.__version__" }
 include = ["imprint*"]
 
 [tool.setuptools.package-data]
-imprint = ["themes/**/*", "templates/*"]
+imprint = ["themes/**/*", "templates/*", "icons/**/*"]

@@ -3,6 +3,20 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## 0.5.0 (2026-09-14)
+
+- Icons: Lucide 1.46.0 (1,838 icons, ISC licence) bundled with the engine and drawn as native
+  PowerPoint freeform shapes: sharp at any size, recolourable, the same in LibreOffice.
+  `imprint icons <word>` searches names and meanings. A theme can add SVG icons with
+  `slides.icons`.
+- Widget items take `icon` (kpi, progress, timeline, cycle, hub, features) and `image` (devices).
+- New widgets: `features` (icon, title and a line per item, in a grid) and `devices`
+  (screenshots in phone frames drawn from shapes).
+- Layouts: `### Heading {icon=name}` puts an icon on a card or a compare header. Documents drop
+  the attribute.
+- `imprint new` also copies pictures a template names in a widget's `image:` field.
+- `tools/update_icons.py` refreshes the icon set from a Lucide release.
+
 ## 0.4.0 (2026-09-14)
 
 - Widgets: charts and infographics written as a ` ```widget ` YAML block with one standard set

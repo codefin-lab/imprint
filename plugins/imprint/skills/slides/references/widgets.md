@@ -6,7 +6,7 @@ PowerPoint's own parts, so the reader can click into it and edit it:
 - **Native charts** (column, bar, stacked-column, stacked-bar, line, area, pie, doughnut,
   waterfall) are real PowerPoint charts. Right-click, Edit Data, and the numbers open in Excel.
 - **Infographics** (kpi, progress, rings, funnel, timeline, cycle, hub, nested, waffle,
-  matrix) are drawn from PowerPoint shapes. Every bar, ring and label is a shape you can move.
+  matrix, features, devices) are drawn from PowerPoint shapes. Every bar, ring and label is a shape you can move.
 
 A widget sits where a picture would: alone on a slide it takes the whole area, beside text it
 takes the right side, and a wide one (a timeline, a line chart, three or more kpi tiles) goes
@@ -70,9 +70,12 @@ Inside `items`, each item takes:
 | `when`, `status` | a timeline's date or period, and `done`, `now` or `next` |
 | `total` | `true` for a waterfall bar that shows a running total |
 | `x`, `y` | a matrix item's position, 0 to 100 |
+| `icon` | an icon name from the bundled set (see Icons below); kpi, progress, timeline, cycle, hub and features draw it |
+| `image` | a picture file relative to the Markdown file, for devices |
 
 Quote a value YAML would misread: `"2026"` as a label that must stay text, `"%"`, `"12,400"`,
-and any text with a colon.
+any text with a colon, and **any text with a comma inside `{...}`**: `note: "One form, no visit"`.
+Unquoted, the comma ends the field and the rest reads as an unknown field.
 
 ## Choosing a widget
 
@@ -91,6 +94,8 @@ and any text with a colon.
 | A platform or organisation and its parts | `hub` |
 | A market and the share you can win | `nested` |
 | Priorities on two dimensions | `matrix` |
+| Three to six features, services or benefits | `features` (icon, title, one line each) |
+| Screens of an app | `devices` (phone frames); `gallery` for pictures without frames |
 
 When none fits, draw the diagram with the diagram-design skill in the `slide-16x9` preset
 and place the PNG, or build a table.
@@ -114,11 +119,35 @@ These come from how professional pitch, data and strategy decks are built:
 - **Colour means the same thing on every slide.** The theme's palette is applied in order; keep
   items in the same order across slides so a colour always names the same thing.
 
+## Icons
+
+Imprint ships Lucide, 1,838 line icons under the ISC licence. An icon is drawn as a native
+PowerPoint shape, so it is sharp at any size, takes the theme's colours, and can be recoloured
+in PowerPoint.
+
+```bash
+imprint icons wallet            # icons whose name or meaning matches
+imprint icons bank money        # several words: icons matching all of them, or else any
+```
+
+Every icon is at https://lucide.dev/icons, under the same names. An unknown name leaves the
+icon out with a warning that suggests close matches.
+
+- Use icons for **categories and features**, where a picture helps the eye find its place. Never
+  as decoration beside every bullet.
+- One icon means one thing throughout a deck: if `shield-check` is security on slide 3, it is
+  security on slide 12.
+- On slides outside widgets, a `###` heading takes one with `{icon=name}` at its end:
+  `### Onboarding {icon=user-plus}`. Cards show it at the top of the card, and compare shows it
+  in the header. A document drops the `{...}`.
+- A theme can add its own icons: `slides.icons` names a folder of SVG files drawn the same way
+  (24 by 24 grid, strokes, no fills); a name there wins over the bundled one.
+
 ## Limits the build warns about
 
 Column and stacked charts beyond twelve categories, pie and doughnut beyond six parts, kpi
 beyond eight tiles, rings beyond five, funnel beyond six stages, timeline beyond seven
-milestones, cycle and hub beyond eight. The widget still draws; the slide should be split.
+milestones, cycle and hub beyond eight, features beyond nine, devices beyond five. The widget still draws; the slide should be split.
 
 ## Theme keys
 

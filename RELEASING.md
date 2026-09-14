@@ -6,11 +6,11 @@ published to a package index.
 ## Steps
 
 ```bash
-python3 scripts/release.py 0.4.0          # engine __version__, plugin.json, every ensure-engine.sh
+python3 scripts/release.py 0.5.0          # engine __version__, plugin.json, every ensure-engine.sh
 # add the release to CHANGELOG.md
 python3 plugins/imprint/engine/tests/run.py --pdf
-git commit -am "Release 0.4.0"
-git tag -a v0.4.0 -m "Release 0.4.0"     # annotated: --follow-tags pushes only these
+git commit -am "Release 0.5.0"
+git tag -a v0.5.0 -m "Release 0.5.0"     # annotated: --follow-tags pushes only these
 git push --follow-tags
 ```
 
@@ -20,9 +20,9 @@ The test suite fails if the version numbers disagree, so a release cannot go out
 
 | Installed with | They run | What happens |
 | :-- | :-- | :-- |
-| `npx skills` | `npx skills update -g` | new SKILL.md files; the next build's `ensure-engine.sh` installs engine `v0.4.0` |
+| `npx skills` | `npx skills update -g` | new SKILL.md files; the next build's `ensure-engine.sh` installs engine `v0.5.0` |
 | Claude Code plugin | `claude plugin marketplace update imprint`, then `claude plugin update imprint@imprint` | the same, through the plugin, after a restart |
-| the command only | `uv tool install --force "git+https://github.com/codefin-lab/imprint@v0.4.0#subdirectory=plugins/imprint/engine"` | the engine only |
+| the command only | `uv tool install --force "git+https://github.com/codefin-lab/imprint@v0.5.0#subdirectory=plugins/imprint/engine"` | the engine only |
 
 `imprint doctor` tells anyone on an older version that a newer release exists.
 

@@ -712,6 +712,9 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
         break_before_h1 = theme.break_before_h1
     if hard_breaks is None:
         hard_breaks = theme.hard_line_breaks
+    from .markdown import split_attrs
+    # `{icon=...}` after a heading is for slides; a document shows the heading without it
+    blocks = [("h", (b[1][0], split_attrs(b[1][1])[0])) if b[0] == "h" else b for b in blocks]
     first_block = True
     landscape = False            # current page orientation
     first_section = True         # only the cover's section keeps titlePg

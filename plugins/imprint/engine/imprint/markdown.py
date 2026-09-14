@@ -60,6 +60,18 @@ IMAGE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"[^"]*")?\)$')
 INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*|`[^`]+?`)", re.S)
 
 
+ATTRS = re.compile(r"\s*\{((?:\s*[A-Za-z_][\w-]*=[^\s}]+)+)\s*\}\s*$")
+
+
+def split_attrs(text: str) -> tuple[str, dict]:
+    """`Title {icon=wallet}` into ("Title", {"icon": "wallet"}): Pandoc-style attributes on a heading."""
+    m = ATTRS.search(text or "")
+    if not m:
+        return text, {}
+    pairs = dict(kv.split("=", 1) for kv in m.group(1).split())
+    return text[: m.start()].rstrip(), {k.lower(): v.strip("\"'") for k, v in pairs.items()}
+
+
 def split_front_matter(text: str) -> tuple[dict, str]:
     """Pull the leading `---` YAML block off, if there is one."""
     if text.startswith("---\n"):

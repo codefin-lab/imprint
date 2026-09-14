@@ -31,34 +31,34 @@ Operations review, September 2026
 
 ## Six modules make up the platform
 
-### 1 Onboarding
+### Onboarding {icon=user-plus}
 Customers apply once, in the app or at a branch.
 
-### 2 Identity
+### Identity {icon=scan-face}
 Identity is checked against the national ID service.
 
-### 3 Screening
+### Screening {icon=shield-check}
 KYC and sanctions checks run on every application.
 
-### 4 Approval
+### Approval {icon=circle-check}
 Staff review exceptions in one queue.
 
-### 5 Accounts
+### Accounts {icon=landmark}
 The core system opens the account automatically.
 
-### 6 Reports
+### Reports {icon=file-chart-column}
 Daily figures for operations and compliance.
 
-<!-- notes: Three to six ### headings become cards; numbered headings get number tiles. -->
+<!-- notes: Three to six ### headings become cards; {icon=name} puts an icon on each, and numbered headings get number tiles. -->
 
 ## The pilot keeps a tight scope
 
-### In scope
+### In scope {icon=circle-check}
 - Account opening in the app
 - Identity verification
 - A single screen for branch staff
 
-### Out of scope
+### Out of scope {icon=circle-x}
 - Loan and card applications
 - Migration of historical records
 - Changes to the core system

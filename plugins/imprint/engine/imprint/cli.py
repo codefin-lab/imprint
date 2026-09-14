@@ -5,6 +5,7 @@
     imprint pptx <file.md> [...]     build a .pptx, and a PDF with --pdf
     imprint themes                   list the themes that ship with the engine, with their folders
     imprint widgets [name]           list the widgets; with a name, print its example block
+    imprint icons <word> [...]       find icons by name or meaning
     imprint make-base-pptx --theme <name or folder>    regenerate a theme's slide master
     imprint make-base-docx ...       rebuild a theme's base.docx from a Word export
     imprint doctor                   check the installation and look for a newer release
@@ -23,7 +24,7 @@ from . import __version__
 PKG = Path(__file__).resolve().parent
 TEMPLATES = PKG / "templates"
 REPO = "https://github.com/codefin-lab/imprint"
-IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
+IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)|\bimage:\s*\"?([^\s,}\"]+)")
 
 
 def _new(argv: list[str]) -> int:
@@ -52,7 +53,7 @@ def _new(argv: list[str]) -> int:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
     # a template's example picture travels with it, so the first build works
-    for ref in IMAGE.findall(src.read_text(encoding="utf-8")):
+    for ref in (a or b for a, b in IMAGE.findall(src.read_text(encoding="utf-8"))):
         image, target = args.templates / ref, dest.parent / ref
         if image.is_file() and not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +88,21 @@ def _widgets(argv: list[str]) -> int:
         print(f"no widget '{argv[0]}'; choose from: {', '.join(REGISTRY)}", file=sys.stderr)
         return 1
     print(f"```widget\n{w.example}\n```")
+    return 0
+
+
+def _icons(argv: list[str]) -> int:
+    from .icons import HERE, bundled, search
+    if not argv:
+        version = (HERE / "VERSION").read_text(encoding="utf-8").strip()
+        print(f"{len(bundled())} icons ({version}, ISC licence). Search: imprint icons <word> [word ...]\n"
+              f"Browse them all at https://lucide.dev/icons")
+        return 0
+    found = search(argv)
+    if not found:
+        print(f"no icon matches {' '.join(argv)}", file=sys.stderr)
+        return 1
+    print("\n".join(found))
     return 0
 
 
@@ -161,6 +177,7 @@ COMMANDS = {
     "pptx": lambda a: _run("build_pptx", a),
     "themes": _themes,
     "widgets": _widgets,
+    "icons": _icons,
     "make-base-pptx": lambda a: _run("tools.make_base_pptx", a),
     "make-base-docx": lambda a: _run("tools.make_base", a),
     "boost-cover-art": lambda a: _run("tools.boost_cover_art", a),

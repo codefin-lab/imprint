@@ -16,7 +16,8 @@ applies to all. There are two kinds:
     native charts   column, bar, stacked-column, stacked-bar, line, area, pie, doughnut,
                     waterfall: PowerPoint charts whose data the reader can edit
     infographics    kpi, progress, rings, funnel, timeline, cycle, hub, nested, waffle,
-                    matrix: drawn from PowerPoint shapes, every piece editable
+                    matrix, features, devices: drawn from PowerPoint shapes, every piece
+                    editable; items take an `icon` from icons.py
 
 A widget draws inside a box, so it fits anywhere a picture fits: alone on a slide,
 beside text, or several in a row. Colours and sizes come from the theme's
@@ -77,6 +78,8 @@ ITEM_FIELDS = {
     "total": "true for a waterfall bar that shows a running total",
     "x": "a matrix item's position left to right, 0 to 100",
     "y": "a matrix item's position bottom to top, 0 to 100",
+    "icon": "an icon name (imprint icons <word> finds one)",
+    "image": "a picture file, relative to the Markdown file",
 }
 
 
@@ -340,6 +343,19 @@ def _ring(slide, cx, cy, r, thickness, fraction, colour, track):
         a.adjustments[0] = start * 0.6
         a.adjustments[1] = end * 0.6
         a.adjustments[2] = ratio
+
+
+def _icon(ctx, name, x, y, size, colour) -> bool:
+    """Draw an item's icon; an unknown name becomes a warning with close matches."""
+    from . import icons
+    if not name:
+        return False
+    if icons.add(ctx["slide"], str(name), x, y, size, colour, extra=ctx.get("icon_dir")) is not None:
+        return True
+    near = icons.suggest(str(name))
+    ctx["warnings"].append(f"{ctx['where']}: no icon {name!r}" + (f"; try {', '.join(near)}" if near else "")
+                           + " (imprint icons <word> searches)")
+    return False
 
 
 def _fill_box(box, need):
@@ -645,9 +661,15 @@ def _kpi(ctx, spec: Spec, box):
         colour = _colour(i, it["label"], spec, look)
         card = _L()._box(slide, cx, cy, cw, ch, fill=look.card_fill, line=look.card_border,
                          radius=look.radius, line_w=0.75)
-        _shape(slide, MSO_SHAPE.RECTANGLE, cx, cy + pad, Inches(0.06), int(vpt * 1.25 / 72 * EMU_IN), fill=colour)
         vy = cy + pad
         vh = int(vpt * 1.25 / 72 * EMU_IN)
+        lead = Inches(0.08)
+        if it.get("icon"):
+            isz = int(vh * 0.72)
+            if _icon(ctx, it["icon"], cx + pad, vy + (vh - isz) // 2, isz, colour):
+                lead = isz + Inches(0.15)
+        else:
+            _shape(slide, MSO_SHAPE.RECTANGLE, cx, cy + pad, Inches(0.06), vh, fill=colour)
         value = fmt(it.get("value"), spec)
         delta = it.get("delta")
         dw = 0
@@ -663,7 +685,7 @@ def _kpi(ctx, spec: Spec, box):
                 tri.rotation = 180
             _txt(slide, dx + Inches(0.2), dy, dw - Inches(0.2), Inches(0.28),
                  [(dtext, look.label_pt, dcol, True, None)], deck, space=0)
-        _txt(slide, cx + pad + Inches(0.08), vy, cw - 2 * pad - dw, vh,
+        _txt(slide, cx + pad + lead, vy, cw - 2 * pad - dw - lead, vh,
              [(value, vpt, look.fg, True, look.heading_font)], deck, anchor=MSO_ANCHOR.MIDDLE, space=0)
         ly = vy + vh + Inches(0.1)
         lh = _h(it["label"], look.label_pt + 1, cw - 2 * pad)
@@ -692,9 +714,15 @@ def _progress(ctx, spec: Spec, box):
     need = row * n
     top = y + max(0, (h - need) // 2)
     vw = Inches(1.1)
+    lead = Inches(0.55) if any(it.get("icon") for it in spec.items) else 0
+    x0, w0 = x, w
     for i, it in enumerate(spec.items):
+        x, w = x0, w0
         ry = top + i * row
         colour = _colour(i, it["label"], spec, look, default="one")
+        if lead:
+            _icon(ctx, it.get("icon"), x, ry + Inches(0.12), Inches(0.38), colour)
+            x, w = x0 + lead, w0 - lead
         lh = Inches(0.32)
         _txt(slide, x, ry, w - vw, lh, [(it["label"], lpt, look.fg, False, None)], deck, space=0,
              anchor=MSO_ANCHOR.BOTTOM)
@@ -781,7 +809,8 @@ def _timeline(ctx, spec: Spec, box):
     body_w = seg - Inches(0.15)
     body_h = max(_h(it["label"], look.label_pt + 2, body_w) + (_h(str(it.get("note", "")), look.note_pt + 1, body_w)
                                                                  if it.get("note") else 0) for it in spec.items)
-    dot = Inches(0.26)
+    with_icons = any(it.get("icon") for it in spec.items)
+    dot = Inches(0.56) if with_icons else Inches(0.26)
     need = when_h + dot + Inches(0.2) + body_h
     top = y + max(0, (h - need) // 2)
     ly = top + when_h + dot // 2
@@ -797,9 +826,15 @@ def _timeline(ctx, spec: Spec, box):
             fill, line = colour, None
         if status == "now":
             now_seen = True
-            halo = _shape(slide, MSO_SHAPE.OVAL, cx - dot, ly - dot, 2 * dot, 2 * dot, fill=look.track)
-        d_ = dot * (1.2 if status == "now" else 1)
+            if not with_icons:
+                _shape(slide, MSO_SHAPE.OVAL, cx - dot, ly - dot, 2 * dot, 2 * dot, fill=look.track)
+        d_ = dot * (1.2 if status == "now" and not with_icons else 1)
+        if status == "now" and with_icons:
+            _shape(slide, MSO_SHAPE.OVAL, cx - dot * 0.65, ly - dot * 0.65, dot * 1.3, dot * 1.3, fill=look.track)
         _shape(slide, MSO_SHAPE.OVAL, cx - d_ / 2, ly - d_ / 2, d_, d_, fill=fill, line=line, line_w=2)
+        if it.get("icon"):
+            isz = int(dot * 0.55)
+            _icon(ctx, it["icon"], cx - isz // 2, ly - isz // 2, isz, look.muted if fill == ctx["paper"] else on(fill, look))
         if it.get("when") is not None:
             _txt(slide, cx - seg // 2, top, seg, when_h - Inches(0.05),
                  [(str(it["when"]), look.label_pt + 1, colour if fill != ctx["paper"] else look.sub, True,
@@ -826,7 +861,8 @@ def _cycle(ctx, spec: Spec, box, hub=False):
     n = len(spec.items)
     cx, cy = x + w // 2, y + h // 2
     R = int(min(h * 0.36, w * 0.2))
-    node = int(min(Inches(0.95), R * 0.62)) if hub else Inches(0.46)
+    iconic = any(it.get("icon") for it in spec.items)
+    node = int(min(Inches(0.95), R * 0.62)) if hub else (Inches(0.7) if iconic else Inches(0.46))
     if hub:
         for i, px, py, _ in _around(n, cx, cy, R, R):
             _line(slide, cx, cy, px, py, look.grid, 2)
@@ -848,10 +884,12 @@ def _cycle(ctx, spec: Spec, box, hub=False):
         _shape(slide, MSO_SHAPE.OVAL, px - node // 2, py - node // 2, node, node, fill=colour,
                line=ctx["paper"], line_w=2.5)
         it = spec.items[i]
-        inside = str(i + 1) if not hub else (str(it.get("value")) if it.get("value") is not None else str(i + 1))
-        _txt(slide, px - node // 2, py - node // 2, node, node,
-             [(inside, look.label_pt + (4 if not hub else 2), on(colour, look), True, look.heading_font)],
-             deck, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, space=0)
+        isz = int(node * 0.52)
+        if not (it.get("icon") and _icon(ctx, it["icon"], px - isz // 2, py - isz // 2, isz, on(colour, look))):
+            inside = str(i + 1) if not hub else (str(it.get("value")) if it.get("value") is not None else str(i + 1))
+            _txt(slide, px - node // 2, py - node // 2, node, node,
+                 [(inside, look.label_pt + (4 if not hub else 2), on(colour, look), True, look.heading_font)],
+                 deck, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, space=0)
         paras = [(it["label"], look.label_pt + 2, look.fg, True, None)]
         if it.get("note"):
             paras.append((str(it["note"]), look.note_pt + 1, look.sub, False, None))
@@ -986,6 +1024,107 @@ def _matrix(ctx, spec: Spec, box):
     return False
 
 
+def _features(ctx, spec: Spec, box):
+    """Icon, title and a line of text per item, in a grid: the feature or service slide."""
+    slide, deck, look = ctx["slide"], ctx["deck"], ctx["look"]
+    x, y, w, h = box
+    n = len(spec.items)
+    cols, rows = _grid(n, spec, 3 if n in (5, 6, 9) else 4)
+    gapx, gapy = Inches(0.45), Inches(0.6)
+    cw = (w - gapx * (cols - 1)) // cols
+    badge = Inches(0.8)
+    tpt, npt = look.label_pt + 6, look.label_pt + 2
+    side = str(spec.get("columns") or "") == "" and cols >= 3 and rows >= 2
+    tw = cw - (badge + Inches(0.2) if side else 0)
+    need = 0
+    for it in spec.items:
+        t = _h(it["label"], tpt, tw) + (_h(str(it.get("note")), npt, tw) if it.get("note") else 0) + Inches(0.05)
+        need = max(need, t + (0 if side else badge + Inches(0.18)))
+    need = max(need, badge)
+    top = y + max(0, (h - (need * rows + gapy * (rows - 1))) // 2)
+    for i, it in enumerate(spec.items):
+        cx, cy = x + (i % cols) * (cw + gapx), top + (i // cols) * (need + gapy)
+        colour = _colour(i, it["label"], spec, look)
+        _shape(slide, MSO_SHAPE.OVAL, cx, cy, badge, badge, fill=colour)
+        isz = int(badge * 0.5)
+        if not _icon(ctx, it.get("icon"), cx + (badge - isz) // 2, cy + (badge - isz) // 2, isz, on(colour, look)):
+            _txt(slide, cx, cy, badge, badge, [(str(i + 1), look.label_pt + 4, on(colour, look), True, look.heading_font)],
+                 deck, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.CENTER, space=0)
+        tx, ty = (cx + badge + Inches(0.2), cy) if side else (cx, cy + badge + Inches(0.18))
+        paras = [(it["label"], tpt, look.fg, True, look.heading_font)]
+        if it.get("note"):
+            paras.append((str(it["note"]), npt, look.sub, False, None))
+        _txt(slide, tx, ty, tw, need, paras, deck, space=4)
+    return need * rows + gapy * (rows - 1) > h
+
+
+def _devices(ctx, spec: Spec, box):
+    """Screenshots in phone frames, drawn from shapes, with a caption under each."""
+    slide, deck, look = ctx["slide"], ctx["deck"], ctx["look"]
+    S = _S()
+    x, y, w, h = box
+    n = len(spec.items)
+    cap = Inches(0.62) if any(it.get("label") or it.get("note") for it in spec.items) else 0
+    ph = h - cap
+    pw = int(ph / 2.05)
+    gap = Inches(0.45)
+    if pw * n + gap * (n - 1) > w:
+        pw = (w - gap * (n - 1)) // n
+        ph = int(pw * 2.05)
+    total = pw * n + gap * (n - 1)
+    left = x + (w - total) // 2
+    top = y + max(0, (h - ph - cap) // 2)
+    frame = "1A202C"
+    for i, it in enumerate(spec.items):
+        px = left + i * (pw + gap)
+        body = _L()._box(slide, px, top, pw, ph, fill=frame, radius=pw / EMU_IN * 0.16)
+        bez = int(pw * 0.045)
+        sx, sy, sw, sh = px + bez, top + bez, pw - 2 * bez, ph - 2 * bez
+        src = it.get("image")
+        placed = False
+        if src:
+            path = (ctx["md_dir"] / str(src)).expanduser().resolve()
+            if path.exists():
+                pic = slide.shapes.add_picture(str(path), int(sx), int(sy), int(sw), int(sh))
+                iw, ih = S._picture_size(path)
+                want = sw / sh
+                have = iw / ih
+                if have > want:                     # too wide: trim the sides
+                    trim = (1 - want / have) / 2
+                    pic.crop_left = pic.crop_right = trim
+                else:                               # too tall: trim the bottom, keep the top of the screen
+                    pic.crop_bottom = 1 - have / want
+                geom = pic._element.spPr.find(qn("a:prstGeom"))
+                if geom is not None:
+                    geom.set("prst", "roundRect")
+                    av = geom.find(qn("a:avLst"))
+                    if av is None:
+                        av = OxmlElement("a:avLst")
+                        geom.append(av)
+                    gd = OxmlElement("a:gd")
+                    gd.set("name", "adj")
+                    gd.set("fmla", f"val {int(pw * 0.13 / min(sw, sh) * 100000)}")
+                    av.append(gd)
+                if it.get("label"):
+                    pic._element.nvPicPr.cNvPr.set("descr", str(it["label"]))
+                placed = True
+            else:
+                ctx["warnings"].append(f"{ctx['where']}: image not found: {src}")
+        if not placed:
+            _L()._box(slide, sx, sy, sw, sh, fill=look.track, radius=pw / EMU_IN * 0.12)
+        notch_w = int(pw * 0.3)
+        _L()._box(slide, px + (pw - notch_w) // 2, top + bez + int(pw * 0.03), notch_w, int(pw * 0.07),
+                  fill=frame, radius=0.2)
+        if cap:
+            paras = []
+            if it.get("label"):
+                paras.append((str(it["label"]), look.label_pt + 2, look.fg, True, look.heading_font))
+            if it.get("note"):
+                paras.append((str(it["note"]), look.note_pt, look.sub, False, None))
+            _txt(slide, px - gap // 2, top + ph + Inches(0.12), pw + gap, cap, paras, deck, align=PP_ALIGN.CENTER, space=1)
+    return False
+
+
 # ------------------------------------------------------------------ the registry
 
 @dataclass
@@ -1073,6 +1212,15 @@ _reg(
     Widget("waffle", "a share as a hundred squares", _waffle, count=(1, 4), wide=_many(3),
            example="widget: waffle\nsuffix: \"%\"\nitems:\n  - {label: Apply in the app, value: 58}\n"
                    "  - {label: Apply at a branch, value: 30}"),
+    Widget("features", "icon, title and a line of text per item, in a grid", _features, numeric=False,
+           count=(2, 9), wide=True,
+           example="widget: features\nitems:\n  - {icon: shield-check, label: Secure, note: Bank-grade encryption}\n"
+                   "  - {icon: zap, label: Fast, note: An account in minutes}\n"
+                   "  - {icon: wallet, label: Low fees, note: No monthly charge}"),
+    Widget("devices", "screenshots in phone frames, captioned", _devices, numeric=False, count=(1, 5),
+           wide=_many(3),
+           example="widget: devices\nitems:\n  - {image: screen-apply.png, label: Apply}\n"
+                   "  - {image: screen-verify.png, label: Verify}\n  - {image: screen-track.png, label: Track}"),
     Widget("matrix", "items placed on two axes, in four quadrants", _matrix, numeric=False, count=(1, 12),
            wide=True,
            example="widget: matrix\nx: [Low effort, High effort]\ny: Value\nquadrants: [Quick wins, Big bets, "
@@ -1092,7 +1240,8 @@ def is_wide(text: str) -> bool:
     return w(spec) if callable(w) else bool(w)
 
 
-def render(slide, text: str, box, deck, tone, warnings: list, where: str, paper: str | None = None):
+def render(slide, text: str, box, deck, tone, warnings: list, where: str, paper: str | None = None,
+           md_dir=None):
     """Draw the widget in `box`; problems become warnings naming `where`."""
     try:
         spec = parse(text)
@@ -1112,7 +1261,10 @@ def render(slide, text: str, box, deck, tone, warnings: list, where: str, paper:
         nh = _h(str(note), look.note_pt, w)
         _txt(slide, x, y + h - nh, w, nh, [(str(note), look.note_pt, look.sub, False, None)], deck, space=0)
         h -= nh + Inches(0.08)
-    ctx = {"slide": slide, "deck": deck, "look": look, "tone": tone,
+    from pathlib import Path
+    icon_dir = (deck.theme.slides or {}).get("icons")
+    ctx = {"slide": slide, "deck": deck, "look": look, "tone": tone, "warnings": warnings, "where": where,
+           "md_dir": Path(md_dir or "."), "icon_dir": str((deck.dir / icon_dir).resolve()) if icon_dir else None,
            "paper": paper or (tone.card_fill if tone.dark else deck.paper)}
     if tone.dark:
         dk = (deck.theme.slides or {}).get("dark") or {}
@@ -1137,6 +1289,8 @@ def as_table(text: str):
         aligns = ["left"] + ["right"] * len(spec.series)
     else:
         cols = [k for k in ("when", "label", "value", "delta", "note") if any(it.get(k) not in (None, "") for it in spec.items)]
+        if spec.name == "devices":
+            cols = [k for k in ("label", "note") if k in cols] or ["label"]
         head = {"when": "When", "label": "Item", "value": "Value", "delta": "Change", "note": "Note"}
         rows = [[head[c] for c in cols]]
         for it in spec.items:
