@@ -98,7 +98,7 @@ def _text_width_pt(text: str, size_pt: float, *, bold: bool) -> float:
         if ch == " " or ch == "\u00a0":
             width += 0.28
         elif "\u0e00" <= ch <= "\u0e7f":
-            width += 0.58
+            width += 0.63
         elif ch.isupper() or ch in "mwMW@%":
             width += 0.68
         elif ch in "iljtfI.,:;'|!()[]":
@@ -106,7 +106,7 @@ def _text_width_pt(text: str, size_pt: float, *, bold: bool) -> float:
         elif ch.isdigit():
             width += 0.56
         else:
-            width += 0.5
+            width += 0.52
     return width * size_pt * (1.06 if bold else 1.0)
 
 
@@ -210,16 +210,17 @@ def _add_chip_behind(paragraph, label, fill, text_colour, theme: Theme, pt: floa
             f'<a:srgbClr val="{str(border).upper()}"/></a:solidFill></a:ln>'
             if border else '<a:ln><a:noFill/></a:ln>')
     sid = next(_CHIP_IDS)
-    # from the top of the line: the baseline sits about 1.33 text sizes down
-    # (Word and LibreOffice alike, with the theme's line heights); the box is
-    # centred on the middle of the lower-case letters, a third of a size up.
-    # LibreOffice ignores <wp:align>center</wp:align> here, so it is an offset.
-    top = text_pt * float(cfg.get("baseline", 1.13)) - 0.33 * pt - h_pt / 2
+    # an offset from the top of the line (LibreOffice ignores <wp:align>center</wp:align>
+    # here), scaled by the text size so it holds at any size.
     # in a table cell LibreOffice measures "line" from the baseline, Word from
     # the line's top; both agree on the paragraph's top, and a chip in a cell
     # is nearly always on the cell's first line
     in_cell = paragraph._p.getparent() is not None and paragraph._p.getparent().tag == qn("w:tc")
     frame = "paragraph" if in_cell else "line"
+    # measured on rendered pages (Word and LibreOffice agree to a pixel): these
+    # put the middle of the label's capitals in the middle of the box
+    factor = float(cfg.get("baseline_cell", 0.91) if in_cell else cfg.get("baseline", 1.03))
+    top = text_pt * factor - 0.33 * pt - h_pt / 2
     vpos = f'<wp:posOffset>{int(top * emu)}</wp:posOffset>'
     xml = (
         f'<w:drawing {nsdecls("w", "wp", "a")} '

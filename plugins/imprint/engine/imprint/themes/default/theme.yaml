@@ -163,7 +163,8 @@ chips:                          # [[Label]] inline chips (a document may set its
   style: shape                  # shape = text on the line, rounded box behind it
                                 # box = label inside an inline rounded box (sits on the baseline)
                                 # shade = shaded text, square corners
-  baseline: 1.13                # shape: where the baseline sits below the line top, in text sizes
+  baseline: 1.03                # shape: moves the box down (up when smaller), in text sizes
+  baseline_cell: 0.91           # the same in a table cell
   radius: 0.5                   # 0 square .. 0.5 pill
   padding_x: 4                  # points either side of the label
   padding_y: 1                  # points above and below
