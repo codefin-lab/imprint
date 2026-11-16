@@ -1,7 +1,7 @@
 """Design tokens for a document theme, loaded from themes/<name>/theme.yaml."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
 import yaml
@@ -25,6 +25,14 @@ def _as_line_heights(value) -> dict:
     return {"body": value}
 
 
+def _merge(base: dict, over: dict) -> dict:
+    """`over` laid on `base`, nested dicts merged rather than replaced."""
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
 @dataclass(frozen=True)
 class Theme:
     name: str
@@ -46,6 +54,9 @@ class Theme:
     labels: dict = field(default_factory=dict)
     defaults: dict = field(default_factory=dict)
     slides: dict = field(default_factory=dict)
+    callout: dict = field(default_factory=dict)
+    chips: dict = field(default_factory=dict)
+    screen: dict = field(default_factory=dict)
     source: Path = field(repr=False, default=None)
 
     # --- convenience accessors used by the renderer -----------------------
@@ -107,6 +118,32 @@ class Theme:
     def style_for(self, level: int) -> str:
         return self.heading_style.get(level, self.heading_style[max(self.heading_style)])
 
+    # theme sections a document may adjust in its own front matter
+    OVERRIDABLE = ("font", "size", "list", "table", "rule", "page", "gantt", "image", "text",
+                   "space", "cover", "line_height", "toc", "labels", "callout", "chips", "screen",
+                   "slides")
+
+    def with_overrides(self, meta: dict) -> tuple["Theme", dict]:
+        """(theme, rest of meta): a front-matter key named after a theme section
+        and holding a mapping adjusts that section for this one document, e.g.
+
+            chips: {radius: 0.2, padding_x: 5}
+            table: {header_fill: DDEBF7}
+
+        Scalars stay placeholders as before; only mappings are theme settings."""
+        changes, rest = {}, {}
+        names = {f.name for f in fields(self)}
+        for k, v in meta.items():
+            key = str(k)
+            if key in self.OVERRIDABLE and key in names and isinstance(v, (dict, float, int)) \
+                    and (isinstance(v, dict) or key == "line_height"):
+                current = getattr(self, key)
+                v = _as_line_heights(v) if key == "line_height" else v
+                changes[key] = _merge(current or {}, v)
+            else:
+                rest[k] = v
+        return (replace(self, **changes) if changes else self), rest
+
     @classmethod
     def load(cls, name_or_path: str | Path = DEFAULT_THEME) -> "Theme":
         path = Path(name_or_path)
@@ -143,5 +180,8 @@ class Theme:
             labels=data.get("labels", {}) or {},
             defaults={str(k): str(v) for k, v in (data.get("defaults") or {}).items()},
             slides=data.get("slides", {}) or {},
+            callout=data.get("callout", {}) or {},
+            chips=data.get("chips", {}) or {},
+            screen=data.get("screen", {}) or {},
             source=spec,
         )

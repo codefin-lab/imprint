@@ -8,12 +8,23 @@ Returns a flat list of (kind, payload) blocks:
     ('ul' | 'ol', [(level, 'ul' | 'ol', item, number), ...])  level 0 = top;
                   nest by indenting.  `number` is what an ordered item was
                   numbered in the source — a list starting at 2 continues at 2.
-    ('table',     ([[cell, ...], ...], [align, ...]))  first row is the header;
+    ('table',     ([[cell, ...], ...], [align, ...], opts))  first row is the header;
                   one align per column from the separator row: 'left' (:--),
-                  'right' (--:), 'center' (:-:) or None (---, the style's own)
+                  'right' (--:), 'center' (:-:) or None (---, the style's own).
+                  opts comes from a `Table: Title {layout=form}` line right above:
+                  {'title': 'Title', 'layout': 'form'}, or {} without one.
+                  A cell that is only `>` joins the cell to its left, only `^` the
+                  cell above
     ('gantt',     spec text)
     ('image',     (src, caption))   a line that is only ![caption](file.png)
     ('quote',     text)             consecutive lines starting with >, joined by newlines
+    ('callout',   (kind, title, text))  a quote whose first line is [!NOTE], [!TIP],
+                  [!IMPORTANT], [!WARNING] or [!CAUTION]; kind is lower case,
+                  title is any text after the marker or None
+    ('screen',    (src, [block, ...]))  `::: screen file.png` up to `:::`: a screenshot
+                  beside the blocks written inside (paragraphs, tables, lists)
+    ('screens',   ([(src, caption), ...], opts))  `::: screens {per_row=3}` up to
+                  `:::`, one ![caption](file.png) per line: screenshots side by side
     ('orient',    'landscape' | 'portrait')
     ('hr',        None)
     ('pagebreak', None)
@@ -51,16 +62,45 @@ RULE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
 ORIENT = re.compile(r"^(?:\\(?P<b>landscape|portrait)|<!--\s*(?P<c>landscape|portrait)\s*-->)$", re.I)
 PAGEBREAK = re.compile(r"^(?:\\(?:pagebreak|newpage)|<!--\s*(?:pagebreak|pb|page-break)\s*-->)$", re.I)
 TOC = re.compile(r"^(?:\\toc|<!--\s*toc\s*-->)$", re.I)
+# `Table: Version history` on the line right above a table: a title band across its top
+TABLE_TITLE = re.compile(r"^Table:\s+(?P<title>\S.*)$")
+# GitHub's alert syntax: the first line of a quote names the kind of box
+CALLOUT = re.compile(r"^\[!(?P<kind>note|tip|important|warning|caution)\]\s*(?P<title>.*)$", re.I)
+CALLOUT_KINDS = ("note", "tip", "important", "warning", "caution")
 
 FENCE = re.compile(r"^```+\s*(\w+)?\s*$")
 # A picture on a line of its own.  The alt text is the caption — the figure's
 # title belongs to the document, never baked into the image.
 IMAGE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"[^"]*")?\)$')
 
-INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*|`[^`]+?`)", re.S)
+# [[Active]] or [[Active|green]] is a chip, !!text!! is alert-red text, [x] / [ ] a checkbox
+INLINE = re.compile(r"(\[\[[^\]\n]+?\]\]|!![^!\n]+?!!|\[[ xX]\]|\*\*.+?\*\*|(?<!\*)\*[^*]+?\*|`[^`]+?`)", re.S)
+# a fenced div, Pandoc style: `::: screen shot.png` ... `:::`
+DIV_OPEN = re.compile(r"^:{3,}\s*(?P<kind>screens?)\b\s*(?P<rest>.*)$", re.I)
+DIV_CLOSE = re.compile(r"^:{3,}\s*$")
+# a picture written inside a table cell, alone or between <br>s
+CELL_IMAGE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"[^"]*")?\)$')
+CHECKBOX = {"[x]": "\u2611", "[X]": "\u2611", "[ ]": "\u2610"}
 
 
 ATTRS = re.compile(r"\s*\{((?:\s*[A-Za-z_][\w-]*=[^\s}]+)+)\s*\}\s*$")
+
+
+_CELL_SPLIT = re.compile(r"\[\[[^\]\n]*\]\]|\\\||\|")
+
+
+def _cells(row: str) -> list[str]:
+    """Split a table row on `|`, except inside a [[chip|colour]] or written `\|`."""
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    cells, start = [], 0
+    for m in _CELL_SPLIT.finditer(row):
+        if m.group() == "|":
+            cells.append(row[start:m.start()])
+            start = m.end()
+    cells.append(row[start:])
+    return [c.strip().replace("\\|", "|") for c in cells]
 
 
 def split_attrs(text: str) -> tuple[str, dict]:
@@ -86,6 +126,7 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
     blocks: list[tuple] = []
     para: list[str] = []
     para_indent = 0
+    table_opts: dict = {}
     i = 0
 
     def flush():
@@ -112,6 +153,23 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             # without a language tag (json, bash, http), is a code block
             blocks.append((lang if lang in ("gantt", "markwhen", "widget") else "code", "\n".join(content)))
             continue
+        elif m := DIV_OPEN.match(line):
+            flush()
+            kind = m.group("kind").lower()
+            rest, opts = split_attrs(m.group("rest").strip())
+            i += 1
+            inner = []
+            while i < len(lines) and not DIV_CLOSE.match(lines[i].strip()):
+                inner.append(lines[i])
+                i += 1
+            i += 1                       # closing :::
+            if kind == "screen":
+                blocks.append(("screen", (rest.strip(), parse("\n".join(inner), indent_spaces=indent_spaces))))
+            else:
+                shots = [(im.group("src"), im.group("alt").strip())
+                         for im in (IMAGE.match(x.strip()) for x in inner) if im]
+                blocks.append(("screens", (shots, opts)))
+            continue
         elif not line:
             flush()
         elif TOC.match(line):
@@ -129,6 +187,10 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
         elif m := HEADING.match(line):
             flush()
             blocks.append(("h", (len(m.group(1)), m.group(2).strip())))
+        elif ((m := TABLE_TITLE.match(line)) and not para and i + 2 < len(lines)
+              and lines[i + 1].strip().startswith("|") and TABLE_SEP.match(lines[i + 2].strip())):
+            title, attrs = split_attrs(m.group("title").strip())
+            table_opts = {**attrs, "title": title or None}
         elif line.startswith("|") and i + 1 < len(lines) and TABLE_SEP.match(lines[i + 1].strip()):
             flush()
             rows = []
@@ -136,9 +198,10 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             while i < len(lines) and lines[i].strip().startswith("|"):
                 row = lines[i].strip()
                 if not TABLE_SEP.match(row):
-                    rows.append([c.strip() for c in row.strip("|").split("|")])
+                    rows.append(_cells(row))
                 i += 1
-            blocks.append(("table", (rows, aligns)))
+            blocks.append(("table", (rows, aligns, table_opts)))
+            table_opts = {}
             continue
         elif line.startswith(">"):
             flush()
@@ -146,7 +209,11 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             while i < len(lines) and lines[i].strip().startswith(">"):
                 quote.append(lines[i].strip()[1:].strip())
                 i += 1
-            blocks.append(("quote", "\n".join(quote)))
+            if quote and (m := CALLOUT.match(quote[0])):
+                blocks.append(("callout", (m.group("kind").lower(), m.group("title").strip() or None,
+                                           "\n".join(quote[1:]).strip("\n"))))
+            else:
+                blocks.append(("quote", "\n".join(quote)))
             continue
         elif m := IMAGE.match(line):
             flush()
@@ -211,16 +278,33 @@ def _parse_list(lines, i):
     return items[0][1], items
 
 
-def inline_spans(text: str):
-    """Yield (text, bold, italic, mono) for each formatted span."""
+def rich_spans(text: str):
+    """Yield (text, bold, italic, mono, mark) for each span.  `mark` is None for
+    plain text, ('chip', colour or None) for [[Label]] / [[Label|colour]],
+    ('alert', None) for !!text!!, and ('box', None) for a [x] / [ ] checkbox,
+    whose text is then the ballot-box character."""
     for piece in INLINE.split(text):
         if not piece:
             continue
-        if piece.startswith("**") and piece.endswith("**"):
-            yield piece[2:-2], True, False, False
+        if piece.startswith("[[") and piece.endswith("]]"):
+            label, _, colour = piece[2:-2].partition("|")
+            yield label.strip(), False, False, False, ("chip", colour.strip().lower() or None)
+        elif piece in CHECKBOX:
+            yield CHECKBOX[piece], False, False, False, ("box", None)
+        elif piece.startswith("!!") and piece.endswith("!!") and len(piece) > 4:
+            yield piece[2:-2], False, False, False, ("alert", None)
+        elif piece.startswith("**") and piece.endswith("**"):
+            yield piece[2:-2], True, False, False, None
         elif piece.startswith("*") and piece.endswith("*"):
-            yield piece[1:-1], False, True, False
+            yield piece[1:-1], False, True, False, None
         elif piece.startswith("`") and piece.endswith("`"):
-            yield piece[1:-1], False, False, True
+            yield piece[1:-1], False, False, True, None
         else:
-            yield piece, False, False, False
+            yield piece, False, False, False, None
+
+
+def inline_spans(text: str):
+    """Yield (text, bold, italic, mono) for each formatted span; chips, alert
+    text and checkboxes come through as their plain text."""
+    for chunk, b, i, mono, _mark in rich_spans(text):
+        yield chunk, b, i, mono

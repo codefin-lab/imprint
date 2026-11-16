@@ -14,16 +14,36 @@ def check(path, theme: Theme) -> tuple[list[str], list[str]]:
     warnings: list[str] = []
 
     fill = theme.table.get("header_fill", "efefef").lower()
+    repeat = theme.table.get("repeat_header_row", True)
+
+    def shading(cell) -> str:
+        tcPr = cell._tc.tcPr
+        shd = tcPr.find(qn("w:shd")) if tcPr is not None else None
+        return (shd.get(qn("w:fill")) or "").lower() if shd is not None else ""
+
+    def header_row(t):
+        """The row of column headings, or None for a table without one (a form,
+        a box of sections, a callout).  Headings repeat on every page, so they
+        are the repeating row that is not a one-cell title band."""
+        if len(t.columns) == 1:
+            return None
+        if not repeat:
+            return t.rows[0]
+        for row in t.rows:
+            trPr = row._tr.trPr
+            if trPr is None or trPr.find(qn("w:tblHeader")) is None:
+                return None
+            if len(row._tr.findall(qn("w:tc"))) > 1:
+                return row
+        return None
+
     for i, t in enumerate(d.tables, 1):
-        seen = set()
-        for cell in t.rows[0].cells:
-            if id(cell._tc) in seen:
-                continue
-            seen.add(id(cell._tc))
-            tcPr = cell._tc.tcPr
-            shd = tcPr.find(qn("w:shd")) if tcPr is not None else None
-            if shd is None or (shd.get(qn("w:fill")) or "").lower() != fill:
-                problems.append(f"table {i}: header cell not shaded {fill}")
+        row = header_row(t)
+        if row is not None:
+            for cell in {id(c._tc): c for c in row.cells}.values():
+                if shading(cell) != fill:
+                    problems.append(f"table {i}: header cell not shaded {fill}")
+                    break
         if t._tbl.tblPr.find(qn("w:tblBorders")) is None:
             problems.append(f"table {i}: no table-level borders")
         for row in t.rows:
