@@ -26,6 +26,8 @@ Returns a flat list of (kind, payload) blocks:
     ('screens',   ([(src, caption), ...], opts))  `::: screens {per_row=3}` up to
                   `:::`, one ![caption](file.png) per line: screenshots side by side
     ('orient',    'landscape' | 'portrait')
+    ('watermark', 'off' | 'on')   `<!-- watermark: off -->` / `<!-- watermark: on -->`: the
+                  pages from here start a section without / with the watermark
     ('hr',        None)
     ('pagebreak', None)
     ('toc',       None)
@@ -61,6 +63,7 @@ RULE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
 # ขึ้นหน้าใหม่ — เขียนแบบไหนก็ได้:  \pagebreak  \newpage  <!-- pagebreak -->  <!-- pb -->
 ORIENT = re.compile(r"^(?:\\(?P<b>landscape|portrait)|<!--\s*(?P<c>landscape|portrait)\s*-->)$", re.I)
 PAGEBREAK = re.compile(r"^(?:\\(?:pagebreak|newpage)|<!--\s*(?:pagebreak|pb|page-break)\s*-->)$", re.I)
+WATERMARK = re.compile(r"^<!--\s*watermark\s*:?\s*(?P<state>off|on)\s*-->$", re.I)
 TOC = re.compile(r"^(?:\\toc|<!--\s*toc\s*-->)$", re.I)
 # `Table: Version history` on the line right above a table: a title band across its top
 TABLE_TITLE = re.compile(r"^Table:\s+(?P<title>\S.*)$")
@@ -172,6 +175,9 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             continue
         elif not line:
             flush()
+        elif m := WATERMARK.match(line):
+            flush()
+            blocks.append(("watermark", m.group("state").lower()))
         elif TOC.match(line):
             flush()
             blocks.append(("toc", None))

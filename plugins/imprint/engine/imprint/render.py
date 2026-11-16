@@ -96,8 +96,14 @@ _FONT_DIRS = [Path.home() / "Library" / "Fonts", Path("/Library/Fonts"), Path("/
 @functools.lru_cache(maxsize=32)
 def _font_file(family: str, bold: bool) -> Path | None:
     """The installed file for a font family and weight, e.g. Sarabun-Bold.ttf."""
-    base = family.replace(" ", "")
-    wanted = [f"{base}-Bold", f"{base}Bold", f"{base}-SemiBold"] if bold else [f"{base}-Regular", base]
+    weights = ("Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black")
+    words = family.split()
+    if len(words) > 1 and words[-1] in weights:      # "Anuphan SemiBold"
+        base, weight = "".join(words[:-1]), words[-1]
+        wanted = [f"{base}-{weight}", f"{base}{weight}"]
+    else:
+        base = family.replace(" ", "")
+        wanted = [f"{base}-Bold", f"{base}Bold", f"{base}-SemiBold"] if bold else [f"{base}-Regular", base]
     for name in wanted:
         for d in _FONT_DIRS:
             if not d.is_dir():
@@ -1525,6 +1531,9 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
     chart_open = False           # a theme-driven landscape chart section is still open
     warnings: list[str] = []
     fresh_page = False           # a section break just started a page of its own
+    section_no = len(document.sections) - 1   # the section being written
+    wm_off: list[int] = []       # sections a <!-- watermark: off --> leaves without it
+    empty_section = False        # a section break was just made and nothing written since
     for idx, (kind, payload) in enumerate(blocks):
         next_kind = blocks[idx + 1][0] if idx + 1 < len(blocks) else None
         wants_chart_page = (kind in ("gantt", "markwhen")
@@ -1534,13 +1543,38 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
         # page.  Two charts in a row simply share the one landscape section.
         if chart_open and not wants_chart_page:
             _close_section(document, True)
+            section_no += 1
+            if wm_off and wm_off[-1] == section_no - 1:
+                wm_off.append(section_no)
             chart_open = False
 
+        if kind == "watermark":
+            # a new section from here; add_watermark leaves the sections listed
+            # in watermark_off without it
+            off = payload == "off"
+            if off != (bool(wm_off) and wm_off[-1] == section_no):
+                # a section with nothing in it yet just changes its own flag:
+                # breaking again would leave an empty section, a blank page
+                if not first_block and not empty_section:
+                    _close_section(document, landscape, title_page=first_section)
+                    first_section = False
+                    section_no += 1
+                    fresh_page = True
+                    empty_section = True
+                if off:
+                    wm_off.append(section_no)
+                elif wm_off and wm_off[-1] == section_no:
+                    wm_off.pop()
+            continue
         if kind == "orient":
             want = payload == "landscape"
             if want != landscape:
                 _close_section(document, landscape, title_page=first_section)
                 first_section = False
+                section_no += 1
+                empty_section = True
+                if wm_off and wm_off[-1] == section_no - 1:
+                    wm_off.append(section_no)     # a watermark-off run carries on
                 landscape = want
                 fresh_page = True
             first_block = False
@@ -1551,11 +1585,15 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
             if not chart_open:
                 _close_section(document, False, title_page=first_section)
                 first_section = False
+                section_no += 1
+                if wm_off and wm_off[-1] == section_no - 1:
+                    wm_off.append(section_no)
                 chart_open = True
             if not _add_gantt(document, payload, theme, landscape=True):
                 warnings.append("a chart block produced no bars "
                                 "(unfilled {{placeholder}} in the dates?)")
             first_block = False
+            empty_section = False
             continue
 
         if kind == "h":
@@ -1690,6 +1728,7 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
         elif kind == "pagebreak":
             document.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         first_block = False
+        empty_section = False
 
     # a chart section still open at the end just becomes the last section —
     # closing it would append an empty portrait page after the chart
@@ -1701,6 +1740,7 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
         body = document.element.body
         old = _sect_pr(document)
         body.replace(old, _oriented(old, landscape, title_page=first_section))
+    document._imprint_watermark_off = set(wm_off)
     return warnings
 
 
@@ -1736,6 +1776,138 @@ def set_document_kind(document, text: str, theme: Theme):
         for node in part.iter(qn("w:t")):
             if node.text and node.text.strip() == kind:
                 node.text = node.text.replace(kind, text)
+
+
+_SHAPETYPE_136 = (
+    '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" '
+    'path="m@7,l@8,m@5,21600l@6,21600e"><v:formulas>'
+    + "".join(f'<v:f eqn="{e}"/>' for e in (
+        "sum #0 0 10800", "prod #0 2 1", "sum 21600 0 @1", "sum 0 0 @2", "sum 21600 0 @3",
+        "if @0 @3 0", "if @0 21600 @1", "if @0 0 @2", "if @0 @4 21600", "mid @5 @6",
+        "mid @8 @5", "mid @7 @8", "mid @6 @7", "sum @6 0 @5"))
+    + '</v:formulas><v:path textpathok="t" o:connecttype="custom" '
+    'o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>'
+    '<v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/>'
+    '</v:handles><o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype>'
+)
+
+
+@functools.lru_cache(maxsize=16)
+def _line_ratio(family: str) -> float:
+    """A font's ascent plus descent, in font sizes (1.2 when the file is not here)."""
+    path = _font_file(family, False) or _font_file(family, True)
+    if path is None:
+        return 1.2
+    try:
+        from PIL import ImageFont
+        asc, desc = ImageFont.truetype(str(path), 1000).getmetrics()
+        return (asc + desc) / 1000
+    except Exception:
+        return 1.2
+
+
+def _blend(colour: str, opacity: float) -> str:
+    """`colour` laid at `opacity` over white, as a solid colour."""
+    c = colour.lstrip("#")
+    rgb = [int(c[k:k + 2], 16) for k in (0, 2, 4)]
+    return "".join(f"{round(v * opacity + 255 * (1 - opacity)):02X}" for v in rgb)
+
+
+def _copy_story(src, dst):
+    """Make header/footer `dst` hold a copy of `src`'s paragraphs and tables."""
+    for child in list(dst):
+        dst.remove(child)
+    for child in src:
+        dst.append(copy.deepcopy(child))
+
+
+def add_watermark(document, theme: Theme):
+    """A text watermark (DRAFT, Confidential) behind every page, in each header.
+
+    It is written the way Word's own Design > Watermark writes it (a VML word-art
+    shape named PowerPlusWaterMarkObject), so whoever opens the file in Word can
+    change or remove it from that menu, and LibreOffice draws it in the PDF.
+    theme or front matter `watermark:` sets text, color, opacity (0..1, blended
+    over white so every reader shows it the same), angle, size (pt), font, and
+    and first (false keeps it off the first page).  `<!-- watermark: off -->` and
+    `<!-- watermark: on -->` in the Markdown take it off a run of pages."""
+    cfg = theme.watermark
+    text = str(cfg.get("text", "")).strip()
+    if not text:
+        return 0
+    size = float(cfg.get("size", 66))
+    angle = float(cfg.get("angle", -45))
+    font = str(cfg.get("font", theme.heading_font))
+    colour = _blend(str(cfg.get("color", "C0C0C0")), float(cfg.get("opacity", 0.5)))
+    # word art stretches its text to fill the box, so the box takes the text's
+    # own proportions: its advance across, and the font's full line (ascent
+    # plus descent) down; otherwise the letters come out squeezed or stretched
+    width = max(_text_width_pt(text, size, bold=False, font=font), size)
+    height = size * float(cfg.get("height_ratio", _line_ratio(font)))
+    rotation = angle % 360
+    # first: false (or the older cover: false) keeps it off the first page:
+    # that page gets a first-page header and footer of its own, copied from
+    # the running ones, which the watermark then skips
+    first_off = any(str(cfg.get(k, True)).lower() in ("false", "no", "0") for k in ("first", "cover"))
+    skip: set[str] = set()
+    sections = list(document.sections)
+    if first_off and sections:
+        first = sections[0]
+        if not first.different_first_page_header_footer:
+            first.different_first_page_header_footer = True
+            for src, dst in ((first.header, first.first_page_header),
+                             (first.footer, first.first_page_footer)):
+                if not dst._has_definition:
+                    dst._add_definition()
+                _copy_story(src._element, dst._element)
+        ref = first._sectPr.find(f"{qn('w:headerReference')}[@{qn('w:type')}='first']")
+        if ref is not None:
+            skip.add(ref.get(qn("r:id")))
+    # sections inside <!-- watermark: off --> get headers of their own, copied
+    # from the running ones, so taking the watermark out of them touches no other page
+    for no in sorted(getattr(document, "_imprint_watermark_off", ())):
+        if no >= len(sections):
+            continue
+        sec = sections[no]
+        for kind in ("default", "first"):
+            ref = sec._sectPr.find(f"{qn('w:headerReference')}[@{qn('w:type')}='{kind}']")
+            if ref is None:
+                continue
+            src = document.part.rels[ref.get(qn("r:id"))].target_part.element
+            hf = sec.header if kind == "default" else sec.first_page_header
+            hf._drop_definition()
+            hf._add_definition()
+            _copy_story(src, hf._element)
+            new_ref = sec._sectPr.find(f"{qn('w:headerReference')}[@{qn('w:type')}='{kind}']")
+            skip.add(new_ref.get(qn("r:id")))
+    headers = {rid: rel.target_part for rid, rel in document.part.rels.items()
+               if rel.reltype.endswith("/header") and not rel.is_external}
+    count = 0
+    for n, (rid, part) in enumerate(headers.items(), 1):
+        if rid in skip:
+            continue
+        hdr = part.element
+        p = hdr.find(qn("w:p"))
+        if p is None:
+            p = OxmlElement("w:p")
+            hdr.append(p)
+        xml = (
+            f'<w:r {nsdecls("w")} xmlns:v="urn:schemas-microsoft-com:vml" '
+            f'xmlns:o="urn:schemas-microsoft-com:office:office" '
+            f'xmlns:w10="urn:schemas-microsoft-com:office:word"><w:pict>'
+            + _SHAPETYPE_136 +   # each header is its own part, so each declares the shape type
+            f'<v:shape id="PowerPlusWaterMarkObject{n}" o:spid="_x0000_s{2048 + n}" type="#_x0000_t136" '
+            f'style="position:absolute;margin-left:0;margin-top:0;width:{width:.1f}pt;height:{height:.1f}pt;'
+            f'rotation:{rotation:g};z-index:-251654144;mso-position-horizontal:center;'
+            f'mso-position-horizontal-relative:margin;mso-position-vertical:center;'
+            f'mso-position-vertical-relative:margin" o:allowincell="f" fillcolor="#{colour}" stroked="f">'
+            f'<v:fill opacity="1"/>'
+            f'<v:textpath style="font-family:&quot;{escape(font)}&quot;;font-size:1pt" string="{escape(text, {chr(34): "&quot;"})}"/>'
+            f'<w10:wrap anchorx="margin" anchory="margin"/></v:shape></w:pict></w:r>'
+        )
+        p.append(parse_xml(xml))
+        count += 1
+    return count
 
 
 def substitute(document, values: dict) -> int:
@@ -1882,6 +2054,8 @@ def build(md_path: Path, out_path: Path, theme: Theme, toc_pages: dict | None = 
     if document_kind:
         set_document_kind(document, str(document_kind), theme)
     filled = substitute(document, meta)
+    if theme.watermark.get("text"):
+        add_watermark(document, theme)
     name_all_styles(document)
     document.save(str(out_path))
     return {"blocks": len(blocks), "tables": len(document.tables), "theme": theme,

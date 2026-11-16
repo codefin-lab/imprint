@@ -177,6 +177,16 @@ chips:                          # [[Label]] inline chips (a document may set its
   default: gray
   checkbox_font: Segoe UI Symbol          # [x] / [ ] need a font with ballot boxes
 
+watermark:                      # off unless text is set; a document sets its own with
+  text: ""                      #   watermark: DRAFT   or   watermark: {text: ..., first: false}
+  color: C0C0C0
+  opacity: 0.5                  # blended over white, so every reader shows the same colour
+  angle: -45
+  size: 66                      # points
+  # font: Anuphan SemiBold      # default: the heading font
+  first: true                   # false keeps it off the first page
+                                # <!-- watermark: off --> / <!-- watermark: on --> skip a run of pages
+
 screen:                         # ::: screen and ::: screens blocks
   image_share: 0.3              # the screenshot column's share of the width
   panel_fill: "333333"

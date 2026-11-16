@@ -32,6 +32,11 @@ asks for the engine release with the same number, and installs it when it is mis
   written inside (paragraphs, tables, lists, callouts); `::: screens {per_row=3}` lays
   `![caption](file.png)` lines side by side under their captions. Slides show the pictures and
   the text in turn.
+- Watermarks: `watermark: DRAFT` in the front matter (or the theme's `watermark:`) puts the text
+  behind every page, written the way Word's Design > Watermark writes it, so it can be changed
+  or removed from that menu. Options: color, opacity, angle, size, font, and `first: false` to
+  keep it off the first page; `<!-- watermark: off -->` / `<!-- watermark: on -->` take it off
+  a run of pages (each run starts a new page).
 - The BRD template uses them: a project form, titled tables, a priority scale and references.
 
 ## 0.6.0 (2026-09-14)
