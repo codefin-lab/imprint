@@ -122,6 +122,12 @@ def main() -> int:
     if broken:
         failures.append(f"icons that do not draw: {', '.join(broken[:10])}")
 
+    r = subprocess.run([sys.executable, str(ENGINE / "tests" / "test_toc.py")] + (["--pdf"] if args.pdf else []),
+                       capture_output=True, text=True, cwd=ENGINE)
+    print(f"  {'ok' if r.returncode == 0 else 'FAILED':18} contents page numbers (tests/test_toc.py)")
+    if r.returncode:
+        failures.append(f"test_toc.py:\n{r.stdout}{r.stderr}")
+
     r = subprocess.run([sys.executable, str(ENGINE / "tests" / "test_tables.py")],
                        capture_output=True, text=True, cwd=ENGINE)
     print(f"  {'ok' if r.returncode == 0 else 'FAILED':18} table title bands, forms, callouts (tests/test_tables.py)")

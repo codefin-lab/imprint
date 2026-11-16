@@ -1838,6 +1838,14 @@ def _toc_headings(blocks) -> list[str]:
     return [v[1] for i, (k, v) in enumerate(blocks) if k == "h" and i > at]
 
 
+def _toc_title(blocks) -> str | None:
+    """The heading written straight above `<!-- toc -->`, which titles the contents."""
+    at = _toc_marker(blocks)
+    if at > 0 and blocks[at - 1][0] == "h":
+        return blocks[at - 1][1][1]
+    return None
+
+
 def _toc_entries(blocks, theme: Theme) -> list[str]:
     """The subset of those the theme's `levels` actually put in the contents."""
     levels = [int(l) for l in theme.toc.get("levels", [1])]
@@ -1895,6 +1903,7 @@ def build(md_path: Path, out_path: Path, theme: Theme, toc_pages: dict | None = 
             # every heading after the marker, so the page lookup can find them,
             # and the subset the theme actually lists, for an honest count
             "headings": _toc_headings(blocks),
+            "toc_title": _toc_title(blocks),
             "toc_entries": _toc_entries(blocks, theme)}
 
 

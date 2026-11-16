@@ -17,6 +17,7 @@ from pathlib import Path
 from . import Theme, build
 from .office import convert, find_soffice
 from .verify import check
+from . import toc
 
 HERE = Path(__file__).resolve().parent
 
@@ -25,34 +26,18 @@ def to_pdf(soffice: str, docx_path: Path) -> Path:
     return convert(soffice, docx_path)
 
 
-def heading_pages(pdf: Path, headings: list[str], skip_until: int = 1) -> dict:
-    """Which page each heading actually landed on, read back off the PDF.
-
-    A heading also appears in the table of contents itself, so a page is only
-    accepted once past the contents — `skip_until` is the last page the contents
-    occupy.  The match is against a whole line, not a substring, or "1. SCOPE"
-    would match "1. SCOPE OF WORK" in a running header.
-    """
-    text = subprocess.run(["pdftotext", "-layout", str(pdf), "-"],
-                          capture_output=True, text=True).stdout
-    pages = text.split("\f")
-    found = {}
-    for n, page in enumerate(pages, 1):
-        if n <= skip_until:
-            continue
-        lines = {" ".join(l.split()) for l in page.splitlines()}
-        for h in headings:
-            if h not in found and " ".join(h.split()) in lines:
-                found[h] = n
-    return found
+def heading_pages(pdf: Path, headings: list[str], skip_until: int | None = None,
+                  title: str | None = None, entries: list[str] | None = None) -> dict:
+    """Which page each heading landed on (see imprint.toc). Kept for older callers:
+    `skip_until` overrides the contents pages Imprint finds on its own."""
+    if skip_until is None:
+        return toc.heading_pages(pdf, headings, title, entries)
+    return toc.match_pages(toc.page_texts(pdf), headings, skip_until)
 
 
 def toc_last_page(pdf: Path, marker: str = "TABLE OF CONTENTS") -> int:
-    text = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True).stdout
-    for n, page in enumerate(text.split("\f"), 1):
-        if marker.lower() in page.lower():
-            return n
-    return 1
+    """Last page of the contents (kept for older callers)."""
+    return toc.contents_pages(toc.page_texts(pdf), marker, [])[1] or 1
 
 
 def main(argv=None) -> int:
@@ -80,30 +65,33 @@ def main(argv=None) -> int:
     # render, read the real ones back, rebuild.  The placeholder pass writes the
     # same number of TOC lines, so pagination does not move between passes.
     soffice = find_soffice()
+    toc_missing: list[str] = []
     if stats.get("has_toc") and stats.get("headings"):
         if not soffice:
             print("  warning     table of contents left blank — needs LibreOffice "
                   "to find the page numbers")
         else:
+            title, entries = stats.get("toc_title"), stats.get("toc_entries", [])
             first = to_pdf(soffice, out)
-            pages = heading_pages(first, stats["headings"], toc_last_page(first))
+            pages = heading_pages(first, stats["headings"], title=title, entries=entries)
             stats = build(args.markdown, out, theme, toc_pages=pages)
             # NB: not `check` — that name is the imported verify function, and
             # assigning it here would make it local to main() for the whole
             # function, breaking the verify call further down.
             confirmed = heading_pages(to_pdf(soffice, out), stats["headings"],
-                                      toc_last_page(out.with_suffix(".pdf")))
-            moved = {h: (pages.get(h), confirmed.get(h)) for h in stats["headings"]
+                                      title=title, entries=entries)
+            moved = {h: (pages.get(h), confirmed.get(h)) for h in entries
                      if pages.get(h) != confirmed.get(h)}
+            toc_missing = [h for h in entries if h not in pages]
             if moved:
                 print(f"  warning     {len(moved)} contents entry(s) shifted between "
                       f"passes: {list(moved)[:3]}")
-            else:
-                entries = stats.get("toc_entries", [])
-                missing = [h for h in entries if h not in pages]
-                print(f"  contents    {len(entries) - len(missing)}/{len(entries)} "
-                      f"entries, page numbers verified"
-                      + (f" — NOT FOUND: {missing}" if missing else ""))
+            elif not toc_missing:
+                print(f"  contents    {len(entries)}/{len(entries)} entries, page numbers verified")
+            if toc_missing:
+                # the entry would read a dash in the client's copy: never a quiet success
+                print(f"  warning     contents: no page found for {len(toc_missing)} of "
+                      f"{len(entries)} entries: {toc_missing}")
     print(f"{out}")
     print(f"  theme       {theme.name}")
     print(f"  blocks      {stats['blocks']}")
@@ -121,6 +109,9 @@ def main(argv=None) -> int:
             print("  VERIFY FAILED")
             for e in errors:
                 print(f"    - {e}")
+            return 2
+        if toc_missing and args.strict:
+            print("  VERIFY FAILED (--strict): contents entries without a page number")
             return 2
         if warnings and args.strict:
             print("  VERIFY FAILED (--strict)")

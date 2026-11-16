@@ -5,6 +5,17 @@ asks for the engine release with the same number, and installs it when it is mis
 
 ## Unreleased
 
+- Contents: a heading that wraps onto two or more lines in the PDF now gets its page number;
+  it used to read a dash. Matching ignores whitespace and case, so Thai headings match even
+  when pdftotext splits a word, and still needs whole lines, so a running header never counts.
+- Contents: the contents pages are found from the title written above `<!-- toc -->`
+  (for example "สารบัญ"), not only "Table of contents", and over every page they run to.
+- Contents: an entry without a page number is a warning naming it, and fails `--strict`; the
+  build used to report "page numbers verified" with the entry still reading a dash.
+- `imprint toc <file.docx> [--pdf]` refreshes the contents page numbers of a .docx that a
+  script edited after the build.
+- `tests/test_toc.py`, also run by `tests/run.py`: matching rules, and with `--pdf` a real
+  document with wrapped and Thai headings, before and after `imprint toc`.
 - Tables: `Table: Title` on the line above a table puts a dark title band across its top,
   repeated with the header on a new page.
 - Tables: `{layout=form}` on that line makes a form: no header row, and every all-bold cell is a
