@@ -3,6 +3,20 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## Unreleased
+
+- Contents: a heading that wraps onto two or more lines in the PDF now gets its page number;
+  it used to read a dash. Matching ignores whitespace and case, so Thai headings match even
+  when pdftotext splits a word, and still needs whole lines, so a running header never counts.
+- Contents: the contents pages are found from the title written above `<!-- toc -->`
+  (for example "สารบัญ"), not only "Table of contents", and over every page they run to.
+- Contents: an entry without a page number is a warning naming it, and fails `--strict`; the
+  build used to report "page numbers verified" with the entry still reading a dash.
+- `imprint toc <file.docx> [--pdf]` refreshes the contents page numbers of a .docx that a
+  script edited after the build.
+- `tests/test_toc.py`, also run by `tests/run.py`: matching rules, and with `--pdf` a real
+  document with wrapped and Thai headings, before and after `imprint toc`.
+
 ## 0.6.0 (2026-09-14)
 
 - Devices: the drawn phone is now an iPhone Pro to its real proportions, with a metal band,

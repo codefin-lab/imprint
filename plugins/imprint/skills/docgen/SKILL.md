@@ -133,6 +133,12 @@ of a page, every figure readable, every placeholder filled.
   heading's page back from the PDF, and rebuilds. It runs LibreOffice in its own profile, so
   a LibreOffice window you have open neither blocks it nor lends it stale fonts. If a run
   still fails, the build warns, and a rebuild fixes it.
+- An entry whose heading cannot be found reads a dash, and the build prints
+  "contents: no page found for ..."; `--strict` fails the build instead. Never send a file
+  with that warning.
+- A script that edits the .docx after `imprint docx` (restyling cells, adding rows, swapping a
+  picture) can move headings to other pages. Run `imprint toc <file.docx> --pdf` as its last
+  step: it lays the file out as it is now and rewrites the contents page numbers.
 - A heading right after `<!-- landscape -->` must not also get `\pagebreak`; the section break
   already starts a page. Put the landscape marker before the heading.
 - Fonts must be installed on the machine that opens the file, or Word substitutes.
