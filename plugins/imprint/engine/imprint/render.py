@@ -114,7 +114,7 @@ def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: flo
     """A chip: the label on a rounded rectangle, set inline in the text.
 
     theme `chips:` (or a document's own `chips:` front matter) shapes it:
-    style (shape | shade), radius (0 square to 0.5 pill), padding_x and
+    style (shape | box | shade), radius (0 square to 0.5 pill), padding_x and
     padding_y in points, size_delta from the surrounding text, bold, border.
     `style: shade` falls back to a shaded run, which has no rounded corners."""
     cfg = theme.chips or {}
@@ -133,6 +133,9 @@ def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: flo
     pad_x = float(cfg.get("padding_x", 4))
     pad_y = float(cfg.get("padding_y", 1))
     radius = min(max(float(cfg.get("radius", 0.5)), 0.0), 0.5)
+    if str(cfg.get("style", "shape")).lower() != "box":
+        return _add_chip_behind(paragraph, label, fill, text_colour, theme, pt, font, bold,
+                                pad_x, pad_y, radius, cfg, size)
     w_pt = _text_width_pt(label, pt, bold=bold) + 2 * pad_x
     # the label's line is set exactly, so the box height does not hang on a
     # font's own line spacing (Thai fonts run tall and would sink the text)
@@ -179,6 +182,74 @@ def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: flo
     drop = float(cfg.get("drop", 0))
     if drop > 0:
         run._r.get_or_add_rPr().append(_el("w:position", val=-int(round(drop * 2))))
+    return run
+
+
+def _pad_run(paragraph, pt: float, font: str):
+    """A gap exactly `pt` wide: a no-break space at 1pt, widened by character
+    spacing.  Word and LibreOffice both honour w:spacing to the twip."""
+    run = paragraph.add_run("\u00a0")
+    run.font.size = Pt(1)
+    _set_fonts(run, font)
+    run._r.get_or_add_rPr().append(_el("w:spacing", val=max(int(round((pt - 0.28) * 20)), 0)))
+    return run
+
+
+def _add_chip_behind(paragraph, label, fill, text_colour, theme: Theme, pt: float, font: str,
+                     bold: bool, pad_x: float, pad_y: float, radius: float, cfg: dict,
+                     text_pt: float):
+    """The label stays ordinary text on the line, so it shares the baseline of
+    the words around it, and a rounded box is drawn behind it, anchored to the
+    label's first character and centred on the line."""
+    w_pt = _text_width_pt(label, pt, bold=bold) + 2 * pad_x
+    h_pt = pt * float(cfg.get("line", 1.3)) + 2 * pad_y
+    emu = 12700
+    cx, cy = int(w_pt * emu), int(h_pt * emu)
+    border = cfg.get("border")
+    line = (f'<a:ln w="{int(float(cfg.get("border_width", 0.75)) * emu)}"><a:solidFill>'
+            f'<a:srgbClr val="{str(border).upper()}"/></a:solidFill></a:ln>'
+            if border else '<a:ln><a:noFill/></a:ln>')
+    sid = next(_CHIP_IDS)
+    # from the top of the line: the baseline sits about 1.33 text sizes down
+    # (Word and LibreOffice alike, with the theme's line heights); the box is
+    # centred on the middle of the lower-case letters, a third of a size up.
+    # LibreOffice ignores <wp:align>center</wp:align> here, so it is an offset.
+    top = text_pt * float(cfg.get("baseline", 1.13)) - 0.33 * pt - h_pt / 2
+    # in a table cell LibreOffice measures "line" from the baseline, Word from
+    # the line's top; both agree on the paragraph's top, and a chip in a cell
+    # is nearly always on the cell's first line
+    in_cell = paragraph._p.getparent() is not None and paragraph._p.getparent().tag == qn("w:tc")
+    frame = "paragraph" if in_cell else "line"
+    vpos = f'<wp:posOffset>{int(top * emu)}</wp:posOffset>'
+    xml = (
+        f'<w:drawing {nsdecls("w", "wp", "a")} '
+        f'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{sid}" '
+        f'behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1">'
+        f'<wp:simplePos x="0" y="0"/>'
+        f'<wp:positionH relativeFrom="character"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+        f'<wp:positionV relativeFrom="{frame}">{vpos}</wp:positionV>'
+        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>'
+        f'<wp:docPr id="{sid}" name="Chip {sid}" descr="{escape(label, {chr(34): "&quot;"})}"/>'
+        f'<wp:cNvGraphicFramePr/>'
+        f'<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+        f'<wps:wsp><wps:cNvSpPr/>'
+        f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val {int(radius * 100000)}"/></a:avLst></a:prstGeom>'
+        f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>{line}</wps:spPr>'
+        f'<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>'
+    )
+    anchor = paragraph.add_run()
+    anchor._r.append(parse_xml(xml))
+    _pad_run(paragraph, pad_x, font)
+    run = paragraph.add_run(label)
+    run.bold = bold
+    run.font.size = Pt(pt)
+    run.font.color.rgb = RGBColor.from_string(text_colour)
+    _set_fonts(run, font)
+    if bold:
+        run._r.get_or_add_rPr().append(_el("w:bCs"))
+    _pad_run(paragraph, pad_x, font)
     return run
 
 

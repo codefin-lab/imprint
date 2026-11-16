@@ -160,16 +160,19 @@ table:
   #   brand: {band: 1F4E79, band_text: FFFFFF, band2: 2E75B6, band2_text: FFFFFF, label: DEEAF6, body: F5F9FD}
 
 chips:                          # [[Label]] inline chips (a document may set its own chips:)
-  style: shape                  # shape = rounded box; shade = shaded text, square corners
+  style: shape                  # shape = text on the line, rounded box behind it
+                                # box = label inside an inline rounded box (sits on the baseline)
+                                # shade = shaded text, square corners
+  baseline: 1.13                # shape: where the baseline sits below the line top, in text sizes
   radius: 0.5                   # 0 square .. 0.5 pill
   padding_x: 4                  # points either side of the label
   padding_y: 1                  # points above and below
   size_delta: -1                # label size against the surrounding text
   line: 1.3                     # label line height, in label sizes
-  label_raise: 0.12             # lifts the label to the middle of the box, in label sizes
+  label_raise: 0.12             # box: lifts the label to the middle of the box, in label sizes
   bold: true
   # border: 9CA3AF              # outline colour; border_width in points (0.75)
-  # drop: 0                     # points to lower the chip (LibreOffice moves the label instead)
+  # drop: 0                     # box: points to lower it (LibreOffice moves the label instead)
   # labels: {Active: green, Draft: gray}   # label -> colour name
   # colours: {brand: [DEEAF6, 1F4E79]}     # colour name -> [fill, text]
   default: gray

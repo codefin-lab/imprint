@@ -135,6 +135,10 @@ def main() -> int:
         expect(chips.get("Active", (None,))[0:2] == ("DCF2E3", "50000"),
                f"Active is a green pill-shaped chip ({chips.get('Active')})")
         expect(chips.get("Hold", (None,))[0] == "FEF3C7", "[[Hold|amber]] takes the colour it names")
+        anchors = [a for a in d.element.body.iter(f"{WP}anchor") if a.get("behindDoc") == "1"]
+        label = next((r for r in runs if r.text == "Active"), None)
+        expect(anchors and label is not None and label.bold,
+               "a chip's label is text on the line, its box drawn behind it")
         expect("Signed off" in chips, "a [[chip|colour]] in a table cell keeps its pipe out of the columns")
         alert = next(r for r in runs if r.text == "no going back")
         expect(str(alert.font.color.rgb) == "C00000", "!!text!! is red")
