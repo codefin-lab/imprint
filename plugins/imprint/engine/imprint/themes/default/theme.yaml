@@ -126,6 +126,8 @@ space:
   list_item_after: 2
   list_after: 6
   table_after: 6
+  callout_after: 10
+  screen_after: 10
   image_after: 6
   image_caption_gap: 3
   h1_before_on_new_page: 0
@@ -148,6 +150,46 @@ table:
   min_column_share: 0.07
   max_column_share: 0.45
   char_twips: 115
+  title_fill: 1F2937             # `Table: Title` band above the header
+  title_color: FFFFFF
+  title_caps: true
+  label_fill: efefef            # label cells in a {layout=form} table
+  label_column_max_share: 0.25  # a form's label column wraps beyond this share of the width
+  section_row_min_twips: 560     # a filled box in {layout=sections}
+  # tones:                      # add or override tone= colour sets
+  #   brand: {band: 1F4E79, band_text: FFFFFF, band2: 2E75B6, band2_text: FFFFFF, label: DEEAF6, body: F5F9FD}
+
+chips:                          # [[Label]] inline chips (a document may set its own chips:)
+  style: shade                  # shade = shaded text: ordinary formatting, safe to edit in Word
+                                # box = rounded inline text box that grows when edited (an object)
+  padding: 1                    # shade: no-break spaces either side of the label
+  # border: 9CA3AF              # shade: outline colour
+  size_delta: -1                # label size against the surrounding text
+  bold: true
+  # box only:
+  padding_x: 4                  # points either side of the label
+  radius: 0.5                   # 0 square .. 0.5 pill
+  padding_y: 1                  # points above and below
+  line: 1.3                     # label line height, in label sizes
+  label_raise: 0.12             # lifts the label to the middle of the box, in label sizes
+  # labels: {Active: green, Draft: gray}   # label -> colour name
+  # colours: {brand: [DEEAF6, 1F4E79]}     # colour name -> [fill, text]
+  default: gray
+  checkbox_font: Segoe UI Symbol          # [x] / [ ] need a font with ballot boxes
+
+screen:                         # ::: screen and ::: screens blocks
+  image_share: 0.3              # the screenshot column's share of the width
+  panel_fill: "333333"
+  padding_twips: 120
+  image_max_height_in: 5.0
+  per_row: 3
+  gallery_max_height_in: 4.5
+
+callout:                        # > [!NOTE] boxes; each kind takes label, accent and fill
+  bar_size: 24                  # left bar, eighths of a point
+  label_gap_twips: 60
+  padding_twips: {top: 150, left: 200, bottom: 110, right: 200}
+  # warning: {label: ข้อควรระวัง, accent: D97706, fill: FFFBEB}
 
 page:
   margin_top_in: 1.0

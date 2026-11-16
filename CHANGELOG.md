@@ -16,6 +16,34 @@ asks for the engine release with the same number, and installs it when it is mis
   script edited after the build.
 - `tests/test_toc.py`, also run by `tests/run.py`: matching rules, and with `--pdf` a real
   document with wrapped and Thai headings, before and after `imprint toc`.
+- Tables: `Table: Title` on the line above a table puts a dark title band across its top,
+  repeated with the header on a new page.
+- Tables: `{layout=form}` on that line makes a form: no header row, and every all-bold cell is a
+  shaded label, with label columns sized to their labels.
+- Tables: a cell that is only `>` merges into the cell on its left, only `^` into the cell above.
+- Tables: `{layout=sections}` draws headed boxes (a band with the heading and italic guidance over
+  a box to write in), the shape of a project-details or design form.
+- Tables: `tone=gray|light|amber|blue` colours bands, labels and boxes (a theme can add tones under
+  `table.tones`); `height=` sets the least height of rows to write in. In a form, `| **Group** | > |`
+  is a group row and `| text | > |` a full-width description row.
+- Callouts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and `[!CAUTION]` draw a boxed note
+  with a coloured bar; text after the marker replaces the label. The theme's `callout:` sets
+  colours, labels and padding. On a slide a callout is a paragraph led by its label.
+- Inline: `[[Active]]` is a chip coloured by its label (theme `chips.labels`), `[[Hold|amber]]`
+  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes. A chip is shaded text by
+  default (`style: shade`), ordinary Word formatting that survives editing, search and track
+  changes; `style: box` draws a rounded inline text box that grows with its text. The theme's
+  `chips:` sets padding, size, border and the box's radius. A `|`
+  inside a chip does not split a table cell; `\|` writes a literal bar in a cell.
+- A document's front matter can adjust any theme section for that document alone, e.g.
+  `chips: {radius: 0.2}` or `table: {header_fill: DDEBF7}`; verify checks against the result.
+- Tables: `![](shot.png)` in a cell, alone or between `<br>`s, is a picture fitted to the column.
+  `{header=2}` on the `Table:` line makes the first two rows the header, merges included.
+- Screens: `::: screen shot.png` ... `:::` puts the screenshot on a dark panel beside what is
+  written inside (paragraphs, tables, lists, callouts); `::: screens {per_row=3}` lays
+  `![caption](file.png)` lines side by side under their captions. Slides show the pictures and
+  the text in turn.
+- The BRD template uses them: a project form, titled tables, a priority scale and references.
 
 ## 0.6.0 (2026-09-14)
 

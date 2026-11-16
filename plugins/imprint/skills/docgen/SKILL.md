@@ -73,6 +73,13 @@ address.
 | pipe table | shaded repeating header, borders, columns sized by content |
 | `:--`, `--:`, `:-:` in the separator row | column aligned left, right or centre, header included |
 | `\| **Group** \|  \|  \|` | full-width shaded group row (label must be bold) |
+| `Table: Version history` on the line above a table | dark title band across the table's top, repeated with the header |
+| `Table: Project {layout=form}` | form table: no header row; every all-**bold** cell is a shaded label |
+| `\| **Group** \| > \|` in a form | group row across a form; `\| text \| > \|` is a full-width description row |
+| `Table: Details {layout=sections}`, rows `\| Heading \| guidance \| content \|` | headed boxes: band with the heading and italic guidance over a box to write in; an empty heading cell adds another box |
+| `tone=gray\|light\|amber\|blue`, `height=1.2` (inches) on the `Table:` line | colour set for bands, labels and boxes; least height of a row to write in |
+| a cell that is only `>` / only `^` | merges into the cell on its left / above (any table) |
+| `> [!NOTE]` (also TIP, IMPORTANT, WARNING, CAUTION), text after it is the title | boxed note with a coloured bar; a plain `>` stays an italic quote |
 | fenced code block (any language) | monospace block, for API examples and commands |
 | ` ```markwhen ` | timeline or Gantt chart in markwhen syntax, real dates |
 | ` ```widget ` | a slide chart or infographic (see the slides skill); a document shows its data as a table |

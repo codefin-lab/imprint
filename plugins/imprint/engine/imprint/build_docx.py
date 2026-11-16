@@ -102,7 +102,7 @@ def main(argv=None) -> int:
 
     exit_code = 0
     if not args.no_verify:
-        errors, warnings = check(out, theme)
+        errors, warnings = check(out, stats.get("theme", theme))   # with the document's overrides
         for w in warnings:
             print(f"  warning     {w}")
         if errors:
