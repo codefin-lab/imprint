@@ -46,6 +46,7 @@ class Theme:
     labels: dict = field(default_factory=dict)
     defaults: dict = field(default_factory=dict)
     slides: dict = field(default_factory=dict)
+    callout: dict = field(default_factory=dict)
     source: Path = field(repr=False, default=None)
 
     # --- convenience accessors used by the renderer -----------------------
@@ -143,5 +144,6 @@ class Theme:
             labels=data.get("labels", {}) or {},
             defaults={str(k): str(v) for k, v in (data.get("defaults") or {}).items()},
             slides=data.get("slides", {}) or {},
+            callout=data.get("callout", {}) or {},
             source=spec,
         )

@@ -12,10 +12,18 @@ Draft / For Review / Final: "Draft"
 
 # DOCUMENT CONTROL
 
+Table: Project {layout=form}
+| **Project name** | {{PROJECT_NAME}} | > | > |
+| --- | --- | --- | --- |
+| **Prepared for** | {{CLIENT_LEGAL_NAME}} | **Status** | {{Draft / For Review / Final}} |
+| **Document owner** | Business analyst | **Version** | {{VERSION}} |
+
+Table: Version history
 | Version | Date | Author | Description of change |
 | :-- | :-- | :-- | :-- |
 | 0.1 | 2026-10-01 | Business analyst | First draft |
 
+Table: Approval
 | Role | Name | Position | Date |
 | :-- | :-- | :-- | :-- |
 | Preparer |  | Business analyst |  |
@@ -35,6 +43,17 @@ This document states the business requirements for {{PROJECT_NAME}}. It is the b
 ## Conventions
 
 "Shall" marks a binding requirement, "should" a recommendation, "may" an option. Requirement IDs are stable and never reused.
+
+Table: Priority
+| Priority | Meaning |
+| :-- | :-- |
+| Must | Needed for the first release; without it the release does not go ahead. |
+| Should | Important, but the release can go ahead without it if a workaround exists. |
+| Could | Useful; delivered if time allows. |
+| Won't | Agreed out of scope for this release, recorded so it is not raised again. |
+
+> [!NOTE]
+> Every requirement in Sections 6 to 8 carries one of these priorities.
 
 # 2. BUSINESS CONTEXT
 
@@ -110,6 +129,14 @@ Describe the current process, then the future process. Add a diagram of each, dr
 
 # 11. GLOSSARY
 
+Table: Glossary
 | Term | Meaning |
 | :-- | :-- |
 | KYC | Know your customer: the identity and risk checks required before opening an account |
+
+# 12. REFERENCES
+
+Table: References
+| Name | Location |
+| :-- | :-- |
+| Current onboarding process | Process repository, onboarding folder |

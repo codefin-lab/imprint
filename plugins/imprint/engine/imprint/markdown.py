@@ -8,12 +8,19 @@ Returns a flat list of (kind, payload) blocks:
     ('ul' | 'ol', [(level, 'ul' | 'ol', item, number), ...])  level 0 = top;
                   nest by indenting.  `number` is what an ordered item was
                   numbered in the source — a list starting at 2 continues at 2.
-    ('table',     ([[cell, ...], ...], [align, ...]))  first row is the header;
+    ('table',     ([[cell, ...], ...], [align, ...], opts))  first row is the header;
                   one align per column from the separator row: 'left' (:--),
-                  'right' (--:), 'center' (:-:) or None (---, the style's own)
+                  'right' (--:), 'center' (:-:) or None (---, the style's own).
+                  opts comes from a `Table: Title {layout=form}` line right above:
+                  {'title': 'Title', 'layout': 'form'}, or {} without one.
+                  A cell that is only `>` joins the cell to its left, only `^` the
+                  cell above
     ('gantt',     spec text)
     ('image',     (src, caption))   a line that is only ![caption](file.png)
     ('quote',     text)             consecutive lines starting with >, joined by newlines
+    ('callout',   (kind, title, text))  a quote whose first line is [!NOTE], [!TIP],
+                  [!IMPORTANT], [!WARNING] or [!CAUTION]; kind is lower case,
+                  title is any text after the marker or None
     ('orient',    'landscape' | 'portrait')
     ('hr',        None)
     ('pagebreak', None)
@@ -51,6 +58,11 @@ RULE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
 ORIENT = re.compile(r"^(?:\\(?P<b>landscape|portrait)|<!--\s*(?P<c>landscape|portrait)\s*-->)$", re.I)
 PAGEBREAK = re.compile(r"^(?:\\(?:pagebreak|newpage)|<!--\s*(?:pagebreak|pb|page-break)\s*-->)$", re.I)
 TOC = re.compile(r"^(?:\\toc|<!--\s*toc\s*-->)$", re.I)
+# `Table: Version history` on the line right above a table: a title band across its top
+TABLE_TITLE = re.compile(r"^Table:\s+(?P<title>\S.*)$")
+# GitHub's alert syntax: the first line of a quote names the kind of box
+CALLOUT = re.compile(r"^\[!(?P<kind>note|tip|important|warning|caution)\]\s*(?P<title>.*)$", re.I)
+CALLOUT_KINDS = ("note", "tip", "important", "warning", "caution")
 
 FENCE = re.compile(r"^```+\s*(\w+)?\s*$")
 # A picture on a line of its own.  The alt text is the caption — the figure's
@@ -86,6 +98,7 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
     blocks: list[tuple] = []
     para: list[str] = []
     para_indent = 0
+    table_opts: dict = {}
     i = 0
 
     def flush():
@@ -129,6 +142,10 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
         elif m := HEADING.match(line):
             flush()
             blocks.append(("h", (len(m.group(1)), m.group(2).strip())))
+        elif ((m := TABLE_TITLE.match(line)) and not para and i + 2 < len(lines)
+              and lines[i + 1].strip().startswith("|") and TABLE_SEP.match(lines[i + 2].strip())):
+            title, attrs = split_attrs(m.group("title").strip())
+            table_opts = {**attrs, "title": title or None}
         elif line.startswith("|") and i + 1 < len(lines) and TABLE_SEP.match(lines[i + 1].strip()):
             flush()
             rows = []
@@ -138,7 +155,8 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
                 if not TABLE_SEP.match(row):
                     rows.append([c.strip() for c in row.strip("|").split("|")])
                 i += 1
-            blocks.append(("table", (rows, aligns)))
+            blocks.append(("table", (rows, aligns, table_opts)))
+            table_opts = {}
             continue
         elif line.startswith(">"):
             flush()
@@ -146,7 +164,11 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             while i < len(lines) and lines[i].strip().startswith(">"):
                 quote.append(lines[i].strip()[1:].strip())
                 i += 1
-            blocks.append(("quote", "\n".join(quote)))
+            if quote and (m := CALLOUT.match(quote[0])):
+                blocks.append(("callout", (m.group("kind").lower(), m.group("title").strip() or None,
+                                           "\n".join(quote[1:]).strip("\n"))))
+            else:
+                blocks.append(("quote", "\n".join(quote)))
             continue
         elif m := IMAGE.match(line):
             flush()

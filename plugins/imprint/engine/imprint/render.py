@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 import docx
+from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -279,7 +280,8 @@ def _shade(cell, fill: str):
     tcPr.append(_el("w:shd", val="clear", fill=fill))
 
 
-def _column_widths(rows: list[list[str]], cols: int, theme: Theme) -> list[int] | None:
+def _column_widths(rows: list[list[str]], cols: int, theme: Theme, *,
+                   form: bool = False) -> list[int] | None:
     """Split the text column between table columns by how much each one holds.
 
     Equal columns are what python-docx gives you, and they read badly: a
@@ -289,7 +291,12 @@ def _column_widths(rows: list[list[str]], cols: int, theme: Theme) -> list[int] 
     """
     if str(theme.table.get("column_widths", "content")).lower() != "content":
         return None
+    if form:                                   # a full-width row says nothing about columns
+        rows = [r for r in rows if not _full_width(r)] or rows
+    rows = [["" if _merge_marker(c) else c for c in r] for r in rows]
     total = theme.table.get("width_twips", 10170)
+    if form:
+        return _form_widths(rows, cols, theme, total)
     cap = int(theme.table.get("measure_cap", 90))
     weights = []
     for c in range(cols):
@@ -320,6 +327,75 @@ def _column_widths(rows: list[list[str]], cols: int, theme: Theme) -> list[int] 
 
     widths[-1] += total - sum(widths)          # no rounding drift
     return widths
+
+
+def _full_width(row: list[str]) -> bool:
+    """A row whose first cell is merged right across: `| text | > | > |`."""
+    return len(row) > 1 and all(_merge_marker(c) == ">" for c in row[1:])
+
+
+def _merge_marker(cell: str) -> str | None:
+    """`>` joins a cell to the one on its left, `^` to the one above."""
+    c = cell.strip()
+    return c if c in (">", "^") else None
+
+
+def _is_label(cell: str) -> bool:
+    """A cell that is all **bold**: a label in a form table."""
+    c = cell.strip()
+    return len(c) > 4 and c.startswith("**") and c.endswith("**") and c.count("**") == 2
+
+
+def _form_widths(rows: list[list[str]], cols: int, theme: Theme, total: int) -> list[int]:
+    """A form is label, value, label, value: a label column is as wide as its
+    labels need (up to a quarter of the table, wrapping beyond that), and the
+    value columns, empty in a template, share what is left equally."""
+    # labels are bold and usually capitals, so wider than the body text char_twips measures
+    per_char = int(int(theme.table.get("char_twips", 115)) * 1.25)
+    padding = 2 * int(theme.table.get("cell_margin_twips", 100))
+    cap = int(total * float(theme.table.get("label_column_max_share", 0.25)))
+    label_cols, widths = [], [0] * cols
+    for c in range(cols):
+        cells = [r[c] for r in rows if c < len(r) and r[c].strip()]
+        if cells and all(_is_label(x) for x in cells):
+            label_cols.append(c)
+            text = [x.strip("*") for x in cells]
+            longest = max(len(t) for t in text)
+            word = max(len(w) for t in text for w in t.split())
+            widths[c] = min(max(longest * per_char + padding, word * per_char + padding),
+                            max(cap, word * per_char + padding))
+    rest = [c for c in range(cols) if c not in label_cols]
+    if not rest:
+        return None
+    left = total - sum(widths)
+    for c in rest:
+        widths[c] = left // len(rest)
+    widths[rest[-1]] += total - sum(widths)
+    return widths
+
+
+def _merge_regions(rows: list[list[str]], cols: int) -> list[tuple[int, int, int, int]]:
+    """(top, left, bottom, right) for every cell that `>` and `^` markers extend.
+
+    `>` widens a cell to the right; a row of `^` under the whole width of a cell
+    makes it taller.  A marker that has nothing to join stays as it is."""
+    def at(r, c):
+        return rows[r][c] if c < len(rows[r]) else ""
+    regions = []
+    for r in range(len(rows)):
+        for c in range(cols):
+            if _merge_marker(at(r, c)):
+                continue
+            right = c
+            while right + 1 < cols and _merge_marker(at(r, right + 1)) == ">":
+                right += 1
+            bottom = r
+            while (bottom + 1 < len(rows)
+                   and all(_merge_marker(at(bottom + 1, k)) == "^" for k in range(c, right + 1))):
+                bottom += 1
+            if (bottom, right) != (r, c):
+                regions.append((r, c, bottom, right))
+    return regions
 
 
 def _is_banner(row: list[str], cols: int) -> tuple[bool, str]:
@@ -393,15 +469,26 @@ _ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "right": WD_ALIGN_PARAGRAPH.RIGHT,
 
 
 def _add_table(document, rows: list[list[str]], theme: Theme,
-               aligns: list[str | None] | None = None):
+               aligns: list[str | None] | None = None, opts: dict | None = None):
     """`aligns` comes from the Markdown separator row, one per column. The
     header cell follows its column, so a right-aligned figure column has a
-    right-aligned heading over it; an unset column keeps the style's own."""
+    right-aligned heading over it; an unset column keeps the style's own.
+
+    `opts` comes from a `Table: Title {layout=form}` line: `title` puts a dark
+    band across the top; `layout: form` has no header row, and shades every
+    all-bold cell as a label instead.  `>` and `^` cells merge, in any table."""
+    opts = opts or {}
+    layout = str(opts.get("layout", "")).lower()
+    if layout == "sections":
+        return _add_sections(document, rows, theme, opts)
+    form = layout == "form"
+    tone = _tone(theme, opts)
+    height = _height_twips(opts)
     cols = max(len(r) for r in rows)
     table = document.add_table(rows=len(rows), cols=cols)
     _apply_table_look(table, theme)
 
-    widths = _column_widths(rows, cols, theme)
+    widths = _column_widths(rows, cols, theme, form=form)
     if widths:
         table.autofit = False
         grid = table._tbl.find(qn("w:tblGrid"))
@@ -417,14 +504,21 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
 
     banners = {}
     if theme.table.get("banner_rows", True):
-        for r in range(1, len(rows)):
-            ok, label = _is_banner(rows[r], cols)
+        for r in range(0 if form else 1, len(rows)):
+            # in a form a label beside an empty value is not a group row: a
+            # form's group row is written merged, `| **Group** | > |`
+            if form and not (_full_width(rows[r]) and _is_label(rows[r][0])):
+                continue
+            ok, label = _is_banner(["" if _merge_marker(c) else c for c in rows[r]], cols)
             if ok:
                 banners[r] = label
 
     cant_split = theme.table.get("keep_rows_whole", True)
+    label_fill = theme.table.get("label_fill", theme.table.get("header_fill", "efefef"))
+    if tone:
+        label_fill = tone["label"]
     for r, row in enumerate(rows):
-        header = r == 0
+        header = r == 0 and not form
         if cant_split:
             # a row cut in half by a page break reads as a mistake; the tallest
             # row in a real 20-page proposal is about 4in, so nothing gets stranded
@@ -434,11 +528,21 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
         if header and theme.table.get("repeat_header_row", True):
             trPr = table.rows[r]._tr.get_or_add_trPr()
             trPr.append(_el("w:tblHeader", val=1))
+        if height and not header and r not in banners:
+            _min_height(table.rows[r], height)
         for c in range(cols):
             cell = table.cell(r, c)
             cell.paragraphs[0].text = ""
-            _write_cell(cell.paragraphs[0], row[c] if c < len(row) else "", theme,
+            text = row[c] if c < len(row) else ""
+            if _merge_marker(text):
+                text = ""
+            _write_cell(cell.paragraphs[0], text, theme,
                         bold=header and theme.table.get("header_bold", True))
+            if form and _is_label(text):
+                _shade(cell, label_fill)
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            elif tone and not header and r not in banners:
+                _shade(cell, tone["body"])
             align = _ALIGN.get((aligns or [])[c] if c < len(aligns or []) else None)
             if align is not None and r not in banners:
                 cell.paragraphs[0].alignment = align
@@ -451,7 +555,251 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
 
     for r, label in banners.items():           # after the text, before returning
         _make_banner(table, r, cols, theme, label)
+        if tone:
+            _paint(table.rows[r].cells[0], tone["band2"], tone["band2_text"])
+    for top, left, bottom, right in _merge_regions(rows, cols):
+        if top not in banners:
+            merged = table.cell(top, left).merge(table.cell(bottom, right))
+            # merging carries each joined cell's empty paragraph along, which
+            # would make the row a line taller per cell joined
+            for para in merged.paragraphs[1:]:
+                if not para.text.strip():
+                    para._p.getparent().remove(para._p)
+    if opts.get("title"):
+        _add_title_band(table, cols, theme, opts["title"], tone)
     return table
+
+
+# Colour sets for a table's `tone=`: title band, group rows, labels and the
+# cells people write in.  A theme can add or override any under table.tones.
+TONES = {
+    "gray":  {"band": "7F7F7F", "band_text": "FFFFFF", "band2": "A6A6A6", "band2_text": "FFFFFF",
+              "label": "D9DEE6", "body": "F1F4FC"},
+    "light": {"band": "F2F2F2", "band_text": "3F3F46", "band2": "E7E6E6", "band2_text": "3F3F46",
+              "label": "FFFFFF", "body": "FFFFFF"},
+    "amber": {"band": "F8D97C", "band_text": "3F3F46", "band2": "FBE7A9", "band2_text": "3F3F46",
+              "label": "FDF1D0", "body": "FDF1D0"},
+    "blue":  {"band": "B4C6E7", "band_text": "3F3F46", "band2": "ADB9CA", "band2_text": "FFFFFF",
+              "label": "D6DCE4", "body": "F1F4FC"},
+}
+
+
+def _tone(theme: Theme, opts: dict) -> dict | None:
+    name = str(opts.get("tone", "")).lower()
+    if not name:
+        return None
+    tones = {**TONES, **(theme.table.get("tones") or {})}
+    if name not in tones:
+        raise ValueError(f"table tone '{name}' is not one of: {', '.join(sorted(tones))}")
+    return {**TONES["gray"], **{k: str(v) for k, v in tones[name].items()}}
+
+
+def _height_twips(opts: dict) -> int:
+    """`height=1.2` (inches): the least height of a row people write in."""
+    try:
+        return int(float(opts.get("height", 0)) * 1440)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _min_height(row, twips: int):
+    trPr = row._tr.get_or_add_trPr()
+    for old in trPr.findall(qn("w:trHeight")):
+        trPr.remove(old)
+    trPr.append(_el("w:trHeight", val=twips, hRule="atLeast"))
+
+
+def _paint(cell, fill: str, color: str):
+    _shade(cell, fill)
+    rgb = RGBColor.from_string(color.upper())
+    for p in cell.paragraphs:
+        for run in p.runs:
+            run.font.color.rgb = rgb
+
+
+def _add_sections(document, rows: list[list[str]], theme: Theme, opts: dict):
+    """A form of headed boxes: each row `| Heading | guidance | content |` is a
+    band carrying the heading and, after a bar, the guidance in italics, over a
+    tinted box holding the content, or empty room to write in.  A row whose
+    heading cell is empty adds another box under the band before it."""
+    tone = _tone(theme, opts) or _tone(theme, {"tone": "gray"})
+    height = _height_twips({"height": opts.get("height", 1.0)})
+    out: list[tuple[str, str, str]] = []
+    for row in rows:
+        cells = [c.strip() for c in row] + ["", "", ""]
+        head, hint, content = cells[0], cells[1], cells[2]
+        if head and not _merge_marker(head):
+            out.append(("band", head, hint))
+            out.append(("box", content, ""))
+        else:
+            out.append(("box", content or hint, ""))
+    # a heading's own box is dropped when it is empty and more boxes follow it
+    keep = []
+    for k, item in enumerate(out):
+        nxt = out[k + 1] if k + 1 < len(out) else None
+        if (item[0] == "box" and not item[1] and k and out[k - 1][0] == "band"
+                and nxt and nxt[0] == "box"):
+            continue
+        keep.append(item)
+
+    table = document.add_table(rows=len(keep), cols=1)
+    _apply_table_look(table, theme)
+    width = theme.table.get("width_twips", 10170)
+    grid = table._tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        for gridCol in grid.findall(qn("w:gridCol")):
+            gridCol.set(qn("w:w"), str(width))
+    line = theme.line_twips("table")
+    caps = theme.table.get("title_caps", True)
+    for r, (kind, text, hint) in enumerate(keep):
+        row = table.rows[r]
+        cell = row.cells[0]
+        tcPr = cell._tc.get_or_add_tcPr()
+        tcPr.append(_el("w:tcW", w=width, type="dxa"))
+        trPr = row._tr.get_or_add_trPr()
+        trPr.append(_el("w:cantSplit", val=1))
+        p = cell.paragraphs[0]
+        p.text = ""
+        if kind == "band":
+            write_spans(p, text.upper() if caps else text, theme, bold=True)
+            if hint:
+                bar = p.add_run("   |   ")
+                bar.bold = True
+                bar.font.size = Pt(theme.body_pt)
+                for chunk, _b, _i, _mono in inline_spans(hint):
+                    run = p.add_run(chunk)
+                    run.bold, run.italic = True, True
+                    run.font.size = Pt(max(theme.body_pt - 1, 7))
+                    _set_fonts(run, theme.body_font)
+            _paint(cell, tone["band"], tone["band_text"])
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            _keep_with_next(p)
+        else:
+            _write_cell(p, text, theme)
+            _shade(cell, tone["body"])
+            if text:
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                _min_height(row, int(theme.table.get("section_row_min_twips", 560)))
+            else:
+                _min_height(row, height)
+        if line:
+            p._p.get_or_add_pPr().append(_el("w:spacing", after=0, line=line, lineRule="auto"))
+    if opts.get("title"):
+        _add_title_band(table, 1, theme, opts["title"], None)
+    return table
+
+
+def _add_title_band(table, cols: int, theme: Theme, title: str, tone: dict | None = None):
+    """A dark row across the top of the table carrying its title, repeated with
+    the header when the table runs onto another page."""
+    t = theme.table
+    tr = OxmlElement("w:tr")
+    trPr = OxmlElement("w:trPr")
+    trPr.append(_el("w:cantSplit", val=1))
+    if t.get("repeat_header_row", True):
+        trPr.append(_el("w:tblHeader", val=1))
+    tr.append(trPr)
+    tc = OxmlElement("w:tc")
+    tcPr = OxmlElement("w:tcPr")
+    tcPr.append(_el("w:tcW", w=t.get("width_twips", 10170), type="dxa"))
+    tcPr.append(_el("w:gridSpan", val=cols))
+    tcPr.append(_el("w:shd", val="clear",
+                    fill=tone["band"] if tone else t.get("title_fill", "1F2937")))
+    tc.append(tcPr)
+    tc.append(OxmlElement("w:p"))
+    tr.append(tc)
+    table.rows[0]._tr.addprevious(tr)
+
+    p = table.rows[0].cells[0].paragraphs[0]
+    if t.get("title_caps", True):
+        title = title.upper()
+    write_spans(p, title, theme, bold=True,
+                size=t.get("title_size") or theme.body_pt)
+    color = RGBColor.from_string(
+        (tone["band_text"] if tone else str(t.get("title_color", "FFFFFF"))).upper())
+    for run in p.runs:
+        run.font.color.rgb = color
+    _keep_with_next(p)
+    line = theme.line_twips("table")
+    if line:
+        p._p.get_or_add_pPr().append(_el("w:spacing", after=0, line=line, lineRule="auto"))
+
+
+CALLOUT_LOOK = {
+    "note":      ("Note",      "2563EB", "EFF6FF"),
+    "tip":       ("Tip",       "16A34A", "F0FDF4"),
+    "important": ("Important", "7C3AED", "F5F3FF"),
+    "warning":   ("Warning",   "D97706", "FFFBEB"),
+    "caution":   ("Caution",   "DC2626", "FEF2F2"),
+}
+
+
+def _add_callout(document, kind: str, title: str | None, text: str, theme: Theme):
+    """A boxed note: a one-cell table with a coloured bar down its left edge, a
+    tinted panel and a bold label.  A table, so Word and LibreOffice draw the
+    panel the same and it moves as one block when someone edits around it."""
+    label, accent, fill = CALLOUT_LOOK[kind]
+    look = theme.callout.get(kind, {}) or {}
+    label = title or look.get("label", label)
+    accent = str(look.get("accent", accent))
+    fill = str(look.get("fill", fill))
+
+    table = document.add_table(rows=1, cols=1)
+    tblPr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "bottom", "right", "insideH", "insideV"):
+        borders.append(_el(f"w:{edge}", val="nil"))
+    borders.insert(1, _el("w:left", val="single", sz=theme.callout.get("bar_size", 24), color=accent))
+    tblPr.append(borders)
+    # padding: the line height leaves its extra space under the text, so the
+    # top gets a little more than the bottom for the text to look centred
+    pad = theme.callout.get("padding_twips", {}) or {}
+    cellmar = OxmlElement("w:tblCellMar")
+    for side, default in (("top", 150), ("left", 200), ("bottom", 110), ("right", 200)):
+        cellmar.append(_el(f"w:{side}", w=int(pad.get(side, default)), type="dxa"))
+    tblPr.append(cellmar)
+    width = theme.table.get("width_twips", 10170)
+    grid = table._tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        for gridCol in grid.findall(qn("w:gridCol")):
+            gridCol.set(qn("w:w"), str(width))
+    cell = table.cell(0, 0)
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcPr.append(_el("w:tcW", w=width, type="dxa"))
+    _shade(cell, fill)
+    trPr = table.rows[0]._tr.get_or_add_trPr()
+    trPr.append(_el("w:cantSplit", val=1))
+
+    line = theme.line_twips("table")
+    head = cell.paragraphs[0]
+    write_spans(head, label, theme, bold=True)
+    for run in head.runs:
+        run.font.color.rgb = RGBColor.from_string(accent.upper())
+    paragraphs = [head]
+    for part in text.split("\n") if text.strip() else []:
+        p = cell.add_paragraph()
+        write_spans(p, part.strip(), theme)
+        paragraphs.append(p)
+    for k, p in enumerate(paragraphs):
+        gap = theme.callout.get("label_gap_twips", 60) if k == 0 else 40
+        attrs = {"after": 0 if k == len(paragraphs) - 1 else gap}
+        if line:
+            attrs.update(line=line, lineRule="auto")
+        p._p.get_or_add_pPr().append(_el("w:spacing", **attrs))
+    return table
+
+
+def _table_gap(document, theme: Theme, key: str = "table_after", default_pt: float = 6):
+    """OOXML gives a table no spacing of its own, and two tables cannot touch,
+    so the gap after one is an empty paragraph sized from the theme rather than
+    left at full body height."""
+    spacer = document.add_paragraph()
+    gap = theme.space_twips(key, default_pt)
+    pPr = spacer._p.get_or_add_pPr()
+    pPr.append(_el("w:spacing", after=0, before=0, line=gap, lineRule="exact"))
+    mark = OxmlElement("w:rPr")
+    mark.append(_el("w:sz", val=2))
+    pPr.append(mark)
 
 
 def _add_code(document, text: str, theme: Theme):
@@ -838,18 +1186,12 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
             for run in document.paragraphs[-1].runs:
                 run.italic = True
         elif kind == "table":
-            rows, aligns = payload
-            _add_table(document, rows, theme, aligns)
-            # OOXML gives a table no spacing of its own, and two tables cannot
-            # touch, so the gap after one is an empty paragraph — sized from the
-            # theme rather than left at full body height
-            spacer = document.add_paragraph()
-            gap = theme.space_twips("table_after", 6)
-            pPr = spacer._p.get_or_add_pPr()
-            pPr.append(_el("w:spacing", after=0, before=0, line=gap, lineRule="exact"))
-            mark = OxmlElement("w:rPr")
-            mark.append(_el("w:sz", val=2))
-            pPr.append(mark)
+            rows, aligns, opts = payload
+            _add_table(document, rows, theme, aligns, opts)
+            _table_gap(document, theme)
+        elif kind == "callout":
+            _add_callout(document, *payload, theme)
+            _table_gap(document, theme, "callout_after", 10)
         elif kind in ("gantt", "markwhen"):
             if not _add_gantt(document, payload, theme, landscape=landscape):
                 warnings.append("a chart block produced no bars "

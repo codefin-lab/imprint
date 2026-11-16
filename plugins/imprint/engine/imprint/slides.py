@@ -628,7 +628,7 @@ def _build_content(slide_spec, prs, deck: Deck, theme: Theme, md_dir: Path, work
         for k, (kind, payload) in enumerate(visuals):
             box = (vx + k * (each + deck.gutter), y, each, h)
             if kind == "table":
-                rows, aligns = payload
+                rows, aligns = payload[:2]
                 need = _add_table(slide, rows, aligns, box, deck)
                 if need > h / 914400:
                     warnings.append(f"slide {n} ({slide_spec['title']}): table needs about {need:.1f} in, "
@@ -688,6 +688,9 @@ def build(md_path: Path, out_path: Path, theme: Theme) -> dict:
     md = DIRECTIVE.sub(lambda m: f"\n\n{DIR_MARK}{m.group(1).lower()}={m.group(2).lower()}\n\n", md)
     md = _fill(md, values)
     blocks = parse(md, indent_spaces=int(theme.text.get("indent_spaces", 4)))
+    # a slide has no boxed note: a callout reads as a paragraph led by its label
+    blocks = [("p", (0, [(f"**{b[1][1] or b[1][0].title()}:** {' '.join(b[1][2].split())}", False)]))
+              if b[0] == "callout" else b for b in blocks]
     specs = _chunk(blocks)
     for spec in specs:
         spec.setdefault("tone", str(meta.get("tone", "light")).lower())

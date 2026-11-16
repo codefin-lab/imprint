@@ -3,6 +3,23 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## Unreleased
+
+- Tables: `Table: Title` on the line above a table puts a dark title band across its top,
+  repeated with the header on a new page.
+- Tables: `{layout=form}` on that line makes a form: no header row, and every all-bold cell is a
+  shaded label, with label columns sized to their labels.
+- Tables: a cell that is only `>` merges into the cell on its left, only `^` into the cell above.
+- Tables: `{layout=sections}` draws headed boxes (a band with the heading and italic guidance over
+  a box to write in), the shape of a project-details or design form.
+- Tables: `tone=gray|light|amber|blue` colours bands, labels and boxes (a theme can add tones under
+  `table.tones`); `height=` sets the least height of rows to write in. In a form, `| **Group** | > |`
+  is a group row and `| text | > |` a full-width description row.
+- Callouts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and `[!CAUTION]` draw a boxed note
+  with a coloured bar; text after the marker replaces the label. The theme's `callout:` sets
+  colours, labels and padding. On a slide a callout is a paragraph led by its label.
+- The BRD template uses them: a project form, titled tables, a priority scale and references.
+
 ## 0.6.0 (2026-09-14)
 
 - Devices: the drawn phone is now an iPhone Pro to its real proportions, with a metal band,
