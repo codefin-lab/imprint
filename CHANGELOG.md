@@ -18,6 +18,14 @@ asks for the engine release with the same number, and installs it when it is mis
 - Callouts: `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and `[!CAUTION]` draw a boxed note
   with a coloured bar; text after the marker replaces the label. The theme's `callout:` sets
   colours, labels and padding. On a slide a callout is a paragraph led by its label.
+- Inline: `[[Active]]` is a chip coloured by its label (theme `chips.labels`), `[[Hold|amber]]`
+  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes.
+- Tables: `![](shot.png)` in a cell, alone or between `<br>`s, is a picture fitted to the column.
+  `{header=2}` on the `Table:` line makes the first two rows the header, merges included.
+- Screens: `::: screen shot.png` ... `:::` puts the screenshot on a dark panel beside what is
+  written inside (paragraphs, tables, lists, callouts); `::: screens {per_row=3}` lays
+  `![caption](file.png)` lines side by side under their captions. Slides show the pictures and
+  the text in turn.
 - The BRD template uses them: a project form, titled tables, a priority scale and references.
 
 ## 0.6.0 (2026-09-14)

@@ -127,6 +127,7 @@ space:
   list_after: 6
   table_after: 6
   callout_after: 10
+  screen_after: 10
   image_after: 6
   image_caption_gap: 3
   h1_before_on_new_page: 0
@@ -157,6 +158,20 @@ table:
   section_row_min_twips: 560     # a filled box in {layout=sections}
   # tones:                      # add or override tone= colour sets
   #   brand: {band: 1F4E79, band_text: FFFFFF, band2: 2E75B6, band2_text: FFFFFF, label: DEEAF6, body: F5F9FD}
+
+chips:                          # [[Label]] inline chips
+  # labels: {Active: green, Draft: gray}   # label -> colour name
+  # colours: {brand: [DEEAF6, 1F4E79]}     # colour name -> [fill, text]
+  default: gray
+  checkbox_font: Segoe UI Symbol          # [x] / [ ] need a font with ballot boxes
+
+screen:                         # ::: screen and ::: screens blocks
+  image_share: 0.3              # the screenshot column's share of the width
+  panel_fill: "333333"
+  padding_twips: 120
+  image_max_height_in: 5.0
+  per_row: 3
+  gallery_max_height_in: 4.5
 
 callout:                        # > [!NOTE] boxes; each kind takes label, accent and fill
   bar_size: 24                  # left bar, eighths of a point

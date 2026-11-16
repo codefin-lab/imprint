@@ -47,6 +47,8 @@ class Theme:
     defaults: dict = field(default_factory=dict)
     slides: dict = field(default_factory=dict)
     callout: dict = field(default_factory=dict)
+    chips: dict = field(default_factory=dict)
+    screen: dict = field(default_factory=dict)
     source: Path = field(repr=False, default=None)
 
     # --- convenience accessors used by the renderer -----------------------
@@ -145,5 +147,7 @@ class Theme:
             defaults={str(k): str(v) for k, v in (data.get("defaults") or {}).items()},
             slides=data.get("slides", {}) or {},
             callout=data.get("callout", {}) or {},
+            chips=data.get("chips", {}) or {},
+            screen=data.get("screen", {}) or {},
             source=spec,
         )

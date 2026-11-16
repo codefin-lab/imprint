@@ -128,6 +128,12 @@ def main() -> int:
     if r.returncode:
         failures.append(f"test_tables.py:\n{r.stdout}{r.stderr}")
 
+    r = subprocess.run([sys.executable, str(ENGINE / "tests" / "test_screens.py")],
+                       capture_output=True, text=True, cwd=ENGINE)
+    print(f"  {'ok' if r.returncode == 0 else 'FAILED':18} chips, pictures in cells, screens (tests/test_screens.py)")
+    if r.returncode:
+        failures.append(f"test_screens.py:\n{r.stdout}{r.stderr}")
+
     code, log = new_from_template(OUT)
     print(f"  {'ok' if code == 0 else 'FAILED':18} imprint new copies a template and its picture")
     if code:

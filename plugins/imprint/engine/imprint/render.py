@@ -21,7 +21,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from .gantt import parse_spec, render_png
-from .markdown import inline_spans, parse, split_front_matter
+from .markdown import CELL_IMAGE, inline_spans, parse, rich_spans, split_attrs, split_front_matter
 from .theme import Theme
 
 
@@ -44,14 +44,69 @@ def _set_fonts(run, name: str):
         rf.set(qn(attr), name)
 
 
+# Colour names a chip can take: (fill, text).  A theme adds or overrides them
+# under chips.colours, and maps labels to colours under chips.labels.
+CHIP_COLOURS = {
+    "gray":   ("EDEDED", "4B5563"),
+    "green":  ("DCF2E3", "166534"),
+    "amber":  ("FEF3C7", "92400E"),
+    "red":    ("FDE2E1", "B42318"),
+    "blue":   ("DBEAFE", "1D4ED8"),
+    "purple": ("EDE9FE", "6D28D9"),
+}
+CHIP_LABELS = {
+    "active": "green", "approved": "green", "done": "green", "pass": "green", "y": "green", "yes": "green",
+    "draft": "gray", "n/a": "gray",
+    "pending": "amber", "in review": "amber", "on hold": "amber",
+    "in progress": "blue", "new": "blue",
+    "rejected": "red", "failed": "red", "fail": "red", "n": "red", "no": "red",
+}
+
+
+def chip_colours(label: str, colour: str | None, theme: Theme) -> tuple[str, str]:
+    """(fill, text) for a chip: its own |colour, else the theme's label map, else gray."""
+    chips = theme.chips or {}
+    colours = {**CHIP_COLOURS, **{k.lower(): tuple(v) for k, v in (chips.get("colours") or {}).items()}}
+    labels = {**CHIP_LABELS, **{str(k).lower(): str(v).lower() for k, v in (chips.get("labels") or {}).items()}}
+    name = colour or labels.get(label.strip().lower(), chips.get("default", "gray"))
+    if name not in colours and re.fullmatch(r"[0-9a-fA-F]{6}", name or ""):
+        return name.upper(), "1F2937"                # [[Label|C6EFCE]]: a fill of your own
+    return colours.get(name, colours["gray"])
+
+
+def _run_shade(run, fill: str):
+    rPr = run._r.get_or_add_rPr()
+    for old in rPr.findall(qn("w:shd")):
+        rPr.remove(old)
+    rPr.append(_el("w:shd", val="clear", color="auto", fill=fill))
+
+
 def write_spans(paragraph, text: str, theme: Theme, *, bold=False, size=None, font=None):
     size = size or theme.body_pt
     font = font or theme.body_font
-    for chunk, b, i, mono in inline_spans(text):
+    for chunk, b, i, mono, mark in rich_spans(text):
+        kind = mark[0] if mark else None
+        if kind == "chip":
+            # a no-break space either side pads the shading, so the label sits in a pill
+            run = paragraph.add_run(f"\u00a0{chunk}\u00a0")
+            fill, colour = chip_colours(chunk, mark[1], theme)
+            _run_shade(run, fill)
+            run.font.color.rgb = RGBColor.from_string(colour)
+            run.bold = True
+            run.font.size = Pt(max(size - 1, 6))
+            _set_fonts(run, font)
+            continue
         run = paragraph.add_run(chunk)
         run.bold = bold or b
         run.italic = i
         run.font.size = Pt(size)
+        if kind == "box":
+            # Sarabun and most text fonts have no ballot box; these do, on Windows and Mac
+            _set_fonts(run, (theme.chips or {}).get("checkbox_font", "Segoe UI Symbol"))
+            continue
+        if kind == "alert":
+            run.font.color.rgb = RGBColor.from_string(
+                str(theme.text.get("alert_color", "C00000")).upper())
         _set_fonts(run, theme.mono_font if mono else font)
 
 
@@ -455,13 +510,48 @@ def _make_banner(table, r: int, cols: int, theme: Theme, label: str):
 _CELL_BREAK = re.compile(r"<br\s*/?>", re.I)
 
 
-def _write_cell(paragraph, text: str, theme: Theme, *, bold=False):
+def _write_cell(paragraph, text: str, theme: Theme, *, bold=False, width_twips: int | None = None):
     """Cell text; `<br>` becomes a real line break inside the cell, so a long
-    cell can be laid out as a title plus one item per line."""
+    cell can be laid out as a title plus one item per line.  A part that is a
+    picture, `![](shot.png)`, goes in fitted to the column (`width_twips`)."""
     for idx, part in enumerate(_CELL_BREAK.split(text)):
         if idx:
             paragraph.add_run().add_break(WD_BREAK.LINE)
+        if m := CELL_IMAGE.match(part.strip()):
+            width = (width_twips or theme.table.get("width_twips", 10170) // 3) / 1440
+            problem = _picture(paragraph, m.group("src"), width,
+                               float(theme.table.get("cell_image_max_height_in", 3.0)), theme)
+            if problem:
+                write_spans(paragraph, f"[{problem}]", theme)
+            continue
         write_spans(paragraph, part.strip(), theme, bold=bold)
+
+
+def _image_problem(path: Path) -> str | None:
+    if not path.exists():
+        return f"image not found: {path}"
+    if path.suffix.lower() == ".svg":
+        return f"{path.name}: Word cannot embed SVG — export it as PNG"
+    if path.suffix.lower() not in IMAGE_TYPES:
+        return f"{path.name}: unsupported image type {path.suffix}"
+    return None
+
+
+def _picture(paragraph, src: str, width_in: float, max_h_in: float, theme: Theme) -> str | None:
+    """A picture as a run of `paragraph`, as wide as `width_in` allows without
+    going past `max_h_in` tall or below print resolution.  Returns a problem or None."""
+    path = Path(src)
+    problem = _image_problem(path)
+    if problem:
+        return problem
+    px_w, px_h = _png_size(path)
+    width = width_in
+    if px_w and px_h:
+        width = min(width, px_w / float(theme.image.get("min_dpi", 150)))
+        if width * px_h / px_w > max_h_in:
+            width = max_h_in * px_w / px_h
+    paragraph.add_run().add_picture(str(path), width=Inches(width))
+    return None
 
 
 _ALIGN = {"left": WD_ALIGN_PARAGRAPH.LEFT, "right": WD_ALIGN_PARAGRAPH.RIGHT,
@@ -482,6 +572,10 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
     if layout == "sections":
         return _add_sections(document, rows, theme, opts)
     form = layout == "form"
+    try:
+        head_rows = 0 if form else max(1, int(opts.get("header", 1)))
+    except (TypeError, ValueError):
+        head_rows = 1
     tone = _tone(theme, opts)
     height = _height_twips(opts)
     cols = max(len(r) for r in rows)
@@ -504,7 +598,7 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
 
     banners = {}
     if theme.table.get("banner_rows", True):
-        for r in range(0 if form else 1, len(rows)):
+        for r in range(head_rows, len(rows)):
             # in a form a label beside an empty value is not a group row: a
             # form's group row is written merged, `| **Group** | > |`
             if form and not (_full_width(rows[r]) and _is_label(rows[r][0])):
@@ -518,7 +612,7 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
     if tone:
         label_fill = tone["label"]
     for r, row in enumerate(rows):
-        header = r == 0 and not form
+        header = r < head_rows
         if cant_split:
             # a row cut in half by a page break reads as a mistake; the tallest
             # row in a real 20-page proposal is about 4in, so nothing gets stranded
@@ -536,8 +630,10 @@ def _add_table(document, rows: list[list[str]], theme: Theme,
             text = row[c] if c < len(row) else ""
             if _merge_marker(text):
                 text = ""
+            width = (widths[c] if widths else theme.table.get("width_twips", 10170) // cols)
             _write_cell(cell.paragraphs[0], text, theme,
-                        bold=header and theme.table.get("header_bold", True))
+                        bold=header and theme.table.get("header_bold", True),
+                        width_twips=width - 2 * int(theme.table.get("cell_margin_twips", 100)))
             if form and _is_label(text):
                 _shade(cell, label_fill)
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
@@ -789,6 +885,196 @@ def _add_callout(document, kind: str, title: str | None, text: str, theme: Theme
     return table
 
 
+def _bare_table(container, rows: int, cols: int, widths: list[int], theme: Theme, *,
+                border: str | None = None):
+    """A table at fixed column widths with one plain border all round (or none)."""
+    table = container.add_table(rows=rows, cols=cols)
+    tblPr = table._tbl.tblPr
+    look = tblPr.find(qn("w:tblLook"))
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        if border:
+            borders.append(_el(f"w:{edge}", val="single", sz=theme.table.get("border_size", 8),
+                               color=border))
+        else:
+            borders.append(_el(f"w:{edge}", val="nil"))
+    # schema order: tblBorders, tblLayout, tblCellMar, then tblLook
+    for el in (borders, _el("w:tblLayout", type="fixed")):
+        (look.addprevious(el) if look is not None else tblPr.append(el))
+    table.autofit = False
+    grid = table._tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        for w, gridCol in zip(widths, grid.findall(qn("w:gridCol"))):
+            gridCol.set(qn("w:w"), str(w))
+    for row in table.rows:
+        for w, cell in zip(widths, row.cells):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for old in tcPr.findall(qn("w:tcW")):
+                tcPr.remove(old)
+            tcPr.insert(0, _el("w:tcW", w=w, type="dxa"))
+    return table
+
+
+def _cell_margins(table, pad: int):
+    tblPr = table._tbl.tblPr
+    cellmar = OxmlElement("w:tblCellMar")
+    for side in ("top", "left", "bottom", "right"):
+        cellmar.append(_el(f"w:{side}", w=pad, type="dxa"))
+    look = tblPr.find(qn("w:tblLook"))
+    (look.addprevious(cellmar) if look is not None else tblPr.append(cellmar))
+
+
+def _render_in_cell(cell, blocks, theme: Theme, width: int, *, hard: bool = True) -> list[str]:
+    """Write the blocks a `::: screen` holds into a table cell: paragraphs,
+    tables, lists, callouts and pictures, sized to the cell's `width`."""
+    from dataclasses import replace
+    inner = replace(theme, table={**theme.table, "width_twips": width})
+    problems = []
+    first = cell.paragraphs[0]
+    used_first = False
+
+    def para():
+        nonlocal used_first
+        if not used_first:
+            used_first = True
+            return first
+        return cell.add_paragraph()
+
+    for kind, payload in blocks:
+        if kind == "p":
+            indent, lines = payload
+            p = para()
+            for idx, (text, forced) in enumerate(lines):
+                if idx:
+                    if hard or lines[idx - 1][1]:
+                        p.add_run().add_break(WD_BREAK.LINE)
+                    else:
+                        p.add_run(" ")
+                write_spans(p, text, theme)
+            _space(p, theme, "paragraph_after", 6)
+        elif kind == "h":
+            p = para()
+            write_spans(p, split_attrs(payload[1])[0], theme, bold=True)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _space(p, theme, "paragraph_after", 6)
+        elif kind in ("ul", "ol"):
+            counters: dict[int, int] = {}
+            for level, item_kind, item, number in payload:
+                depth = min(level, 2)
+                if item_kind == "ol":
+                    counters[depth] = number if number else counters.get(depth, 0) + 1
+                    marker = f"{counters[depth]}."
+                else:
+                    marker = theme.list.get("bullet_char", "-")
+                used_first = True if used_first else bool(_drop(first))
+                _literal_item(cell, item, marker, inner, level=depth)
+        elif kind == "table":
+            rows, aligns, opts = payload
+            used_first = True if used_first else bool(_drop(first))
+            _add_table(cell, rows, inner, aligns, opts)
+            cell.add_paragraph()           # the gap after it; Word wants a paragraph between tables
+        elif kind == "callout":
+            used_first = True if used_first else bool(_drop(first))
+            _add_callout(cell, *payload, inner)
+            cell.add_paragraph()
+        elif kind == "image":
+            p = para()
+            problem = _picture(p, payload[0], width / 1440, 6.0, theme)
+            if problem:
+                problems.append(problem)
+                write_spans(p, f"[{problem}]", theme)
+        elif kind == "quote":
+            p = para()
+            write_spans(p, payload.replace("\n", " "), theme)
+            for run in p.runs:
+                run.italic = True
+    # a cell may not end in a table, but it need not end in a blank line either
+    last = cell.paragraphs[-1]
+    if len(cell.paragraphs) > 1 and not last.text.strip() and last._p.getnext() is None \
+            and last._p.getprevious() is not None and last._p.getprevious().tag != qn("w:tbl"):
+        last._p.getparent().remove(last._p)
+    return problems
+
+
+def _drop(paragraph) -> bool:
+    """Remove a cell's opening empty paragraph so a table or list can lead."""
+    if not paragraph.text.strip() and paragraph._p.getparent() is not None:
+        paragraph._p.getparent().remove(paragraph._p)
+    return True
+
+
+def _add_screen(document, src: str, blocks, theme: Theme, *, hard: bool = True) -> list[str]:
+    """A screen specification: the screenshot on a dark panel at the left, and
+    what the screen says and does at the right (`::: screen shot.png`)."""
+    cfg = theme.screen
+    total = theme.table.get("width_twips", 10170)
+    left = int(total * float(cfg.get("image_share", 0.3)))
+    widths = [left, total - left]
+    table = _bare_table(document, 1, 2, widths, theme,
+                        border=str(cfg.get("border_color", theme.table.get("border_color", "000000"))))
+    pad = int(cfg.get("padding_twips", 120))
+    _cell_margins(table, pad)
+    table.rows[0]._tr.get_or_add_trPr().append(_el("w:cantSplit", val=1))
+    shot, body = table.cell(0, 0), table.cell(0, 1)
+    _shade(shot, str(cfg.get("panel_fill", "333333")))
+    shot.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    p = shot.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    problems = []
+    if src:
+        problem = _picture(p, src, (left - 2 * pad - 80) / 1440,
+                           float(cfg.get("image_max_height_in", 5.0)), theme)
+        if problem:
+            problems.append(problem)
+            write_spans(p, f"[{problem}]", theme)
+    problems += _render_in_cell(body, blocks, theme, total - left - 2 * pad, hard=hard)
+    return problems
+
+
+def _add_screens(document, shots, opts: dict, theme: Theme) -> list[str]:
+    """Screenshots side by side, each under its caption, `per_row` to a row
+    (`::: screens {per_row=4}`)."""
+    cfg = theme.screen
+    if not shots:
+        return ["a ::: screens block holds no ![caption](file.png) lines"]
+    try:
+        per_row = max(1, int(opts.get("per_row", cfg.get("per_row", 3))))
+    except (TypeError, ValueError):
+        per_row = 3
+    per_row = min(per_row, len(shots))
+    total = theme.table.get("width_twips", 10170)
+    widths = [total // per_row] * per_row
+    widths[-1] += total - sum(widths)
+    groups = [shots[k:k + per_row] for k in range(0, len(shots), per_row)]
+    border = str(cfg.get("border_color", theme.table.get("border_color", "000000")))
+    table = _bare_table(document, 2 * len(groups), per_row, widths, theme, border=border)
+    pad = int(cfg.get("gallery_padding_twips", 100))
+    _cell_margins(table, pad)
+    max_h = float(opts.get("height", cfg.get("gallery_max_height_in", 4.5)))
+    problems = []
+    for g, group in enumerate(groups):
+        head, body = table.rows[2 * g], table.rows[2 * g + 1]
+        for row in (head, body):
+            row._tr.get_or_add_trPr().append(_el("w:cantSplit", val=1))
+        _keep_with_next(head.cells[0].paragraphs[0])
+        for c in range(per_row):
+            hc, bc = head.cells[c], body.cells[c]
+            hp, bp = hc.paragraphs[0], bc.paragraphs[0]
+            hp.alignment = bp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if c >= len(group):
+                continue
+            src, caption = group[c]
+            _shade(hc, theme.table.get("header_fill", "efefef"))
+            hc.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            write_spans(hp, caption, theme, bold=True, size=max(theme.body_pt - 1, 7))
+            _keep_with_next(hp)
+            problem = _picture(bp, src, (widths[c] - 2 * pad - 80) / 1440, max_h, theme)
+            if problem:
+                problems.append(problem)
+                write_spans(bp, f"[{problem}]", theme)
+    return problems
+
+
 def _table_gap(document, theme: Theme, key: str = "table_after", default_pt: float = 6):
     """OOXML gives a table no spacing of its own, and two tables cannot touch,
     so the gap after one is an empty paragraph sized from the theme rather than
@@ -952,6 +1238,32 @@ def _image_box(theme: Theme, landscape: bool) -> tuple[float, float]:
                 float(img.get("doc_height_in_landscape", gantt.get("doc_height_in_landscape", 6.4))))
     return (float(img.get("doc_width_in", gantt.get("doc_width_in", 6.9))),
             float(img.get("doc_height_in", gantt.get("doc_height_in", 9.6))))
+
+
+_CELL_PICTURE = re.compile(r'!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)((?:\s+"[^"]*")?)\)')
+
+
+def _absolute_paths(blocks, here: Path):
+    """Make every picture path absolute against the document's folder: block
+    images, pictures in table cells, and those inside screen blocks."""
+    def resolve(src: str) -> str:
+        return str((here / Path(src).expanduser()).resolve())
+
+    def cells(text: str) -> str:
+        return _CELL_PICTURE.sub(lambda m: f"![{m.group('alt')}]({resolve(m.group('src'))}{m.group(3)})", text)
+
+    out = []
+    for k, v in blocks:
+        if k == "image":
+            v = (resolve(v[0]), v[1])
+        elif k == "table":
+            v = ([[cells(c) for c in row] for row in v[0]], *v[1:])
+        elif k == "screen":
+            v = (resolve(v[0]) if v[0] else v[0], _absolute_paths(v[1], here))
+        elif k == "screens":
+            v = ([(resolve(src), cap) for src, cap in v[0]], v[1])
+        out.append((k, v))
+    return out
 
 
 def _add_image(document, src: str, caption: str, theme: Theme, *, landscape=False) -> str | None:
@@ -1192,6 +1504,14 @@ def render_blocks(document, blocks, theme: Theme, *, break_before_h1=None,
         elif kind == "callout":
             _add_callout(document, *payload, theme)
             _table_gap(document, theme, "callout_after", 10)
+        elif kind == "screen":
+            for problem in _add_screen(document, *payload, theme, hard=hard_breaks):
+                warnings.append(problem)
+            _table_gap(document, theme, "screen_after", 10)
+        elif kind == "screens":
+            for problem in _add_screens(document, *payload, theme):
+                warnings.append(problem)
+            _table_gap(document, theme, "screen_after", 10)
         elif kind in ("gantt", "markwhen"):
             if not _add_gantt(document, payload, theme, landscape=landscape):
                 warnings.append("a chart block produced no bars "
@@ -1402,8 +1722,7 @@ def build(md_path: Path, out_path: Path, theme: Theme, toc_pages: dict | None = 
     # An image path is written relative to the document, and a document lives
     # with its project — so resolve it here, where the source's location is known.
     here = Path(md_path).resolve().parent
-    blocks = [(k, (str((here / Path(v[0]).expanduser()).resolve()), v[1]))
-              if k == "image" else (k, v) for k, v in blocks]
+    blocks = _absolute_paths(blocks, here)
     override = meta.pop("page_break_before_h1", None)
     breaks = meta.pop("line_breaks", None)
     warnings = render_blocks(document, blocks, theme, break_before_h1=override,

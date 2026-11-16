@@ -21,6 +21,10 @@ Returns a flat list of (kind, payload) blocks:
     ('callout',   (kind, title, text))  a quote whose first line is [!NOTE], [!TIP],
                   [!IMPORTANT], [!WARNING] or [!CAUTION]; kind is lower case,
                   title is any text after the marker or None
+    ('screen',    (src, [block, ...]))  `::: screen file.png` up to `:::`: a screenshot
+                  beside the blocks written inside (paragraphs, tables, lists)
+    ('screens',   ([(src, caption), ...], opts))  `::: screens {per_row=3}` up to
+                  `:::`, one ![caption](file.png) per line: screenshots side by side
     ('orient',    'landscape' | 'portrait')
     ('hr',        None)
     ('pagebreak', None)
@@ -69,7 +73,14 @@ FENCE = re.compile(r"^```+\s*(\w+)?\s*$")
 # title belongs to the document, never baked into the image.
 IMAGE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"[^"]*")?\)$')
 
-INLINE = re.compile(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*|`[^`]+?`)", re.S)
+# [[Active]] or [[Active|green]] is a chip, !!text!! is alert-red text, [x] / [ ] a checkbox
+INLINE = re.compile(r"(\[\[[^\]\n]+?\]\]|!![^!\n]+?!!|\[[ xX]\]|\*\*.+?\*\*|(?<!\*)\*[^*]+?\*|`[^`]+?`)", re.S)
+# a fenced div, Pandoc style: `::: screen shot.png` ... `:::`
+DIV_OPEN = re.compile(r"^:{3,}\s*(?P<kind>screens?)\b\s*(?P<rest>.*)$", re.I)
+DIV_CLOSE = re.compile(r"^:{3,}\s*$")
+# a picture written inside a table cell, alone or between <br>s
+CELL_IMAGE = re.compile(r'^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)\s]+)(?:\s+"[^"]*")?\)$')
+CHECKBOX = {"[x]": "\u2611", "[X]": "\u2611", "[ ]": "\u2610"}
 
 
 ATTRS = re.compile(r"\s*\{((?:\s*[A-Za-z_][\w-]*=[^\s}]+)+)\s*\}\s*$")
@@ -124,6 +135,23 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             # a chart or widget language keeps its own kind; every other fence, with or
             # without a language tag (json, bash, http), is a code block
             blocks.append((lang if lang in ("gantt", "markwhen", "widget") else "code", "\n".join(content)))
+            continue
+        elif m := DIV_OPEN.match(line):
+            flush()
+            kind = m.group("kind").lower()
+            rest, opts = split_attrs(m.group("rest").strip())
+            i += 1
+            inner = []
+            while i < len(lines) and not DIV_CLOSE.match(lines[i].strip()):
+                inner.append(lines[i])
+                i += 1
+            i += 1                       # closing :::
+            if kind == "screen":
+                blocks.append(("screen", (rest.strip(), parse("\n".join(inner), indent_spaces=indent_spaces))))
+            else:
+                shots = [(im.group("src"), im.group("alt").strip())
+                         for im in (IMAGE.match(x.strip()) for x in inner) if im]
+                blocks.append(("screens", (shots, opts)))
             continue
         elif not line:
             flush()
@@ -233,16 +261,33 @@ def _parse_list(lines, i):
     return items[0][1], items
 
 
-def inline_spans(text: str):
-    """Yield (text, bold, italic, mono) for each formatted span."""
+def rich_spans(text: str):
+    """Yield (text, bold, italic, mono, mark) for each span.  `mark` is None for
+    plain text, ('chip', colour or None) for [[Label]] / [[Label|colour]],
+    ('alert', None) for !!text!!, and ('box', None) for a [x] / [ ] checkbox,
+    whose text is then the ballot-box character."""
     for piece in INLINE.split(text):
         if not piece:
             continue
-        if piece.startswith("**") and piece.endswith("**"):
-            yield piece[2:-2], True, False, False
+        if piece.startswith("[[") and piece.endswith("]]"):
+            label, _, colour = piece[2:-2].partition("|")
+            yield label.strip(), False, False, False, ("chip", colour.strip().lower() or None)
+        elif piece in CHECKBOX:
+            yield CHECKBOX[piece], False, False, False, ("box", None)
+        elif piece.startswith("!!") and piece.endswith("!!") and len(piece) > 4:
+            yield piece[2:-2], False, False, False, ("alert", None)
+        elif piece.startswith("**") and piece.endswith("**"):
+            yield piece[2:-2], True, False, False, None
         elif piece.startswith("*") and piece.endswith("*"):
-            yield piece[1:-1], False, True, False
+            yield piece[1:-1], False, True, False, None
         elif piece.startswith("`") and piece.endswith("`"):
-            yield piece[1:-1], False, False, True
+            yield piece[1:-1], False, False, True, None
         else:
-            yield piece, False, False, False
+            yield piece, False, False, False, None
+
+
+def inline_spans(text: str):
+    """Yield (text, bold, italic, mono) for each formatted span; chips, alert
+    text and checkboxes come through as their plain text."""
+    for chunk, b, i, mono, _mark in rich_spans(text):
+        yield chunk, b, i, mono

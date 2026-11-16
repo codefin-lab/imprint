@@ -691,6 +691,16 @@ def build(md_path: Path, out_path: Path, theme: Theme) -> dict:
     # a slide has no boxed note: a callout reads as a paragraph led by its label
     blocks = [("p", (0, [(f"**{b[1][1] or b[1][0].title()}:** {' '.join(b[1][2].split())}", False)]))
               if b[0] == "callout" else b for b in blocks]
+    # a screen spec on a slide: the screenshot, then what was written beside it
+    flat = []
+    for kind, payload in blocks:
+        if kind == "screen":
+            flat += ([("image", (payload[0], ""))] if payload[0] else []) + list(payload[1])
+        elif kind == "screens":
+            flat += [("image", shot) for shot in payload[0]]
+        else:
+            flat.append((kind, payload))
+    blocks = flat
     specs = _chunk(blocks)
     for spec in specs:
         spec.setdefault("tone", str(meta.get("tone", "light")).lower())
