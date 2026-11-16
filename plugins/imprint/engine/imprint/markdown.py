@@ -86,6 +86,23 @@ CHECKBOX = {"[x]": "\u2611", "[X]": "\u2611", "[ ]": "\u2610"}
 ATTRS = re.compile(r"\s*\{((?:\s*[A-Za-z_][\w-]*=[^\s}]+)+)\s*\}\s*$")
 
 
+_CELL_SPLIT = re.compile(r"\[\[[^\]\n]*\]\]|\\\||\|")
+
+
+def _cells(row: str) -> list[str]:
+    """Split a table row on `|`, except inside a [[chip|colour]] or written `\|`."""
+    row = row.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    cells, start = [], 0
+    for m in _CELL_SPLIT.finditer(row):
+        if m.group() == "|":
+            cells.append(row[start:m.start()])
+            start = m.end()
+    cells.append(row[start:])
+    return [c.strip().replace("\\|", "|") for c in cells]
+
+
 def split_attrs(text: str) -> tuple[str, dict]:
     """`Title {icon=wallet}` into ("Title", {"icon": "wallet"}): Pandoc-style attributes on a heading."""
     m = ATTRS.search(text or "")
@@ -181,7 +198,7 @@ def parse(md: str, *, indent_spaces: int = 4) -> list[tuple]:
             while i < len(lines) and lines[i].strip().startswith("|"):
                 row = lines[i].strip()
                 if not TABLE_SEP.match(row):
-                    rows.append([c.strip() for c in row.strip("|").split("|")])
+                    rows.append(_cells(row))
                 i += 1
             blocks.append(("table", (rows, aligns, table_opts)))
             table_opts = {}

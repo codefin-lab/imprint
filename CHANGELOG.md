@@ -19,7 +19,11 @@ asks for the engine release with the same number, and installs it when it is mis
   with a coloured bar; text after the marker replaces the label. The theme's `callout:` sets
   colours, labels and padding. On a slide a callout is a paragraph led by its label.
 - Inline: `[[Active]]` is a chip coloured by its label (theme `chips.labels`), `[[Hold|amber]]`
-  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes.
+  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes. A chip is a rounded
+  inline shape; the theme's `chips:` sets radius, padding, size, border, or `style: shade`. A `|`
+  inside a chip does not split a table cell; `\|` writes a literal bar in a cell.
+- A document's front matter can adjust any theme section for that document alone, e.g.
+  `chips: {radius: 0.2}` or `table: {header_fill: DDEBF7}`; verify checks against the result.
 - Tables: `![](shot.png)` in a cell, alone or between `<br>`s, is a picture fitted to the column.
   `{header=2}` on the `Table:` line makes the first two rows the header, merges included.
 - Screens: `::: screen shot.png` ... `:::` puts the screenshot on a dark panel beside what is

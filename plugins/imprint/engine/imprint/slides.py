@@ -677,11 +677,12 @@ def _doc_date(meta: dict) -> dt.datetime:
 
 
 def build(md_path: Path, out_path: Path, theme: Theme) -> dict:
+    meta, md = split_front_matter(Path(md_path).read_text(encoding="utf-8"))
+    theme, meta = theme.with_overrides(meta)    # this deck's own theme settings
     deck = Deck(theme)
     if not deck.base.exists():
         raise FileNotFoundError(f"theme '{theme.name}' has no slide base at {deck.base}; "
                                 f"run tools/make_base_pptx.py --theme {theme.source.parent}")
-    meta, md = split_front_matter(Path(md_path).read_text(encoding="utf-8"))
     meta = {**theme.defaults, **{str(k): v for k, v in meta.items()}}
     values = {k: str(v) for k, v in meta.items() if v is not None}
     md = NOTE.sub(lambda m: f"\n\n{NOTE_MARK} {' '.join(m.group(1).split())}\n\n", md)

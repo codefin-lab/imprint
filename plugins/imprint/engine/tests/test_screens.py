@@ -32,6 +32,10 @@ cover: false
 
 Status [[Active]], [[Draft]], [[Hold|amber]] and !!no going back!!.
 
+| Field | State |
+| --- | --- |
+| Name | [[Signed off|green]] |
+
 Table: Fields {header=2}
 | Fields | > | Required | > |
 | --- | --- | --- | --- |
@@ -66,8 +70,28 @@ def expect(ok: bool, what: str):
         failures.append(what)
 
 
+A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+WP = "{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}"
+
+
+def chip_shapes(el) -> dict:
+    """label -> (fill, corner adj) for every chip shape under el."""
+    out = {}
+    for dr in el.iter(qn("w:drawing")):
+        geom = dr.find(f".//{A}prstGeom")
+        if geom is None or geom.get("prst") != "roundRect":
+            continue
+        label = dr.find(f".//{WP}docPr").get("descr")
+        fill = dr.find(f".//{A}solidFill/{A}srgbClr").get("val")
+        adj = geom.find(f".//{A}gd").get("fmla").split()[-1]
+        out[label] = (fill, adj)
+    return out
+
+
 def pictures(el) -> list:
-    return el.findall(".//" + qn("w:drawing"))
+    """Pictures (not chip shapes) under el."""
+    return [d for d in el.findall(".//" + qn("w:drawing"))
+            if d.find(f".//{A}prstGeom[@prst='roundRect']") is None]
 
 
 def extent_in(drawing) -> float:
@@ -107,16 +131,15 @@ def main() -> int:
         d = docx.Document(str(out))
 
         runs = [r for p in d.paragraphs for r in p.runs]
-        chip = next(r for r in runs if r.text == " Active ")
-        shd = chip._r.find(f"{qn('w:rPr')}/{qn('w:shd')}")
-        expect(shd is not None and shd.get(qn("w:fill")) == "DCF2E3", "Active is a green chip")
-        hold = next(r for r in runs if r.text == " Hold ")
-        expect(hold._r.find(f"{qn('w:rPr')}/{qn('w:shd')}").get(qn("w:fill")) == "FEF3C7",
-               "[[Hold|amber]] takes the colour it names")
+        chips = chip_shapes(d.element.body)
+        expect(chips.get("Active", (None,))[0:2] == ("DCF2E3", "50000"),
+               f"Active is a green pill-shaped chip ({chips.get('Active')})")
+        expect(chips.get("Hold", (None,))[0] == "FEF3C7", "[[Hold|amber]] takes the colour it names")
+        expect("Signed off" in chips, "a [[chip|colour]] in a table cell keeps its pipe out of the columns")
         alert = next(r for r in runs if r.text == "no going back")
         expect(str(alert.font.color.rgb) == "C00000", "!!text!! is red")
 
-        fields, screen_t, gallery = d.tables
+        _state, fields, screen_t, gallery = d.tables
         head = [fields.rows[1], fields.rows[2]]
         expect(all(r._tr.find(f"{qn('w:trPr')}/{qn('w:tblHeader')}") is not None for r in head),
                "both header rows repeat on a new page")
@@ -140,6 +163,20 @@ def main() -> int:
         expect(gallery.cell(0, 0).text == "One" and gallery.cell(2, 0).text == "Three", "captions above pictures")
         expect(len(pictures(gallery.cell(1, 1)._tc)) == 1 and not pictures(gallery.cell(3, 1)._tc),
                "an empty slot stays empty")
+
+        # a document adjusts the theme in its own front matter
+        md2 = tmp / "o.md"
+        md2.write_text("---\ncover: false\nchips: {style: shade}\ntable: {header_fill: DDEBF7}\n---\n\n"
+                       "[[Active]]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n", encoding="utf-8")
+        out2 = tmp / "o.docx"
+        stats = build(md2, out2, theme)
+        errors, _ = check(out2, stats["theme"])
+        expect(not errors and stats["theme"].table["header_fill"] == "DDEBF7"
+               and theme.table["header_fill"] != "DDEBF7",
+               "front matter table: overrides this document only, and verify uses it")
+        d2 = docx.Document(str(out2))
+        shaded = [r for p in d2.paragraphs for r in p.runs if r.text == "\u00a0Active\u00a0"]
+        expect(len(shaded) == 1 and not chip_shapes(d2.element.body), "chips: {style: shade} draws shaded runs")
 
     if failures:
         print(f"\n{len(failures)} failed")

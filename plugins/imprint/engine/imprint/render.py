@@ -7,6 +7,8 @@ out in the new design.
 from __future__ import annotations
 
 import re
+import unicodedata
+from xml.sax.saxutils import escape
 
 import copy
 import hashlib
@@ -16,8 +18,8 @@ from pathlib import Path
 import docx
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
+from docx.oxml import OxmlElement, parse_xml
+from docx.oxml.ns import nsdecls, qn
 from docx.shared import Inches, Pt, RGBColor
 
 from .gantt import parse_spec, render_png
@@ -81,20 +83,112 @@ def _run_shade(run, fill: str):
     rPr.append(_el("w:shd", val="clear", color="auto", fill=fill))
 
 
+_CHIP_IDS = iter(range(70000, 10**9))
+
+
+def _text_width_pt(text: str, size_pt: float, *, bold: bool) -> float:
+    """A close estimate of how wide `text` sets, for sizing a chip around it.
+    Thai vowel and tone marks above and below take no width; capitals and wide
+    letters take more than lower case."""
+    width = 0.0
+    for ch in text:
+        cat = unicodedata.category(ch)
+        if cat in ("Mn", "Me", "Cf"):
+            continue
+        if ch == " " or ch == "\u00a0":
+            width += 0.28
+        elif "\u0e00" <= ch <= "\u0e7f":
+            width += 0.58
+        elif ch.isupper() or ch in "mwMW@%":
+            width += 0.68
+        elif ch in "iljtfI.,:;'|!()[]":
+            width += 0.3
+        elif ch.isdigit():
+            width += 0.56
+        else:
+            width += 0.5
+    return width * size_pt * (1.06 if bold else 1.0)
+
+
+def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: float, font: str):
+    """A chip: the label on a rounded rectangle, set inline in the text.
+
+    theme `chips:` (or a document's own `chips:` front matter) shapes it:
+    style (shape | shade), radius (0 square to 0.5 pill), padding_x and
+    padding_y in points, size_delta from the surrounding text, bold, border.
+    `style: shade` falls back to a shaded run, which has no rounded corners."""
+    cfg = theme.chips or {}
+    fill, text_colour = chip_colours(label, colour, theme)
+    pt = max(size + float(cfg.get("size_delta", -1)), 6)
+    bold = bool(cfg.get("bold", True))
+    if str(cfg.get("style", "shape")).lower() == "shade":
+        run = paragraph.add_run(f"\u00a0{label}\u00a0")
+        _run_shade(run, fill)
+        run.font.color.rgb = RGBColor.from_string(text_colour)
+        run.bold = bold
+        run.font.size = Pt(pt)
+        _set_fonts(run, font)
+        return run
+
+    pad_x = float(cfg.get("padding_x", 4))
+    pad_y = float(cfg.get("padding_y", 1))
+    radius = min(max(float(cfg.get("radius", 0.5)), 0.0), 0.5)
+    w_pt = _text_width_pt(label, pt, bold=bold) + 2 * pad_x
+    # the label's line is set exactly, so the box height does not hang on a
+    # font's own line spacing (Thai fonts run tall and would sink the text)
+    line_pt = pt * float(cfg.get("line", 1.3))
+    h_pt = line_pt + 2 * pad_y
+    emu = 12700
+    cx, cy = int(w_pt * emu), int(h_pt * emu)
+    border = cfg.get("border")
+    line = (f'<a:ln w="{int(float(cfg.get("border_width", 0.75)) * emu)}"><a:solidFill>'
+            f'<a:srgbClr val="{str(border).upper()}"/></a:solidFill></a:ln>'
+            if border else '<a:ln><a:noFill/></a:ln>')
+    sid = next(_CHIP_IDS)
+    half_points = int(round(pt * 2))
+    # an exact line puts the font's tall ascent above the letters, so the label
+    # reads low in its box; raise it by a share of its size to centre it
+    raise_hp = int(round(float(cfg.get("label_raise", 0.12)) * pt * 2))
+    xml = (
+        f'<w:drawing {nsdecls("w", "wp", "a")} '
+        f'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+        f'<wp:inline distT="0" distB="0" distL="0" distR="0">'
+        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
+        f'<wp:docPr id="{sid}" name="Chip {sid}" descr="{escape(label, {chr(34): "&quot;"})}"/>'
+        f'<wp:cNvGraphicFramePr/>'
+        f'<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+        f'<wps:wsp><wps:cNvSpPr/>'
+        f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        f'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val {int(radius * 100000)}"/></a:avLst></a:prstGeom>'
+        f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>{line}</wps:spPr>'
+        f'<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="{int(round(line_pt * 20))}" w:lineRule="exact"/>'
+        f'<w:jc w:val="center"/></w:pPr><w:r><w:rPr>'
+        f'<w:rFonts w:ascii="{escape(font)}" w:hAnsi="{escape(font)}" w:cs="{escape(font)}" w:eastAsia="{escape(font)}"/>'
+        + ('<w:b/><w:bCs/>' if bold else '') +
+        f'<w:color w:val="{text_colour}"/><w:position w:val="{raise_hp}"/>'
+        f'<w:sz w:val="{half_points}"/><w:szCs w:val="{half_points}"/>'
+        f'</w:rPr><w:t xml:space="preserve">{escape(label)}</w:t></w:r></w:p></w:txbxContent></wps:txbx>'
+        f'<wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr" anchorCtr="0">'
+        f'<a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing>'
+    )
+    run = paragraph.add_run()
+    run._r.append(parse_xml(xml))
+    # an inline shape sits on the baseline.  `drop` (points) lowers it; off by
+    # default, because LibreOffice moves the label inside the box instead of
+    # the box, and the PDF would show the text sunk below the pill
+    drop = float(cfg.get("drop", 0))
+    if drop > 0:
+        run._r.get_or_add_rPr().append(_el("w:position", val=-int(round(drop * 2))))
+    return run
+
+
 def write_spans(paragraph, text: str, theme: Theme, *, bold=False, size=None, font=None):
     size = size or theme.body_pt
     font = font or theme.body_font
     for chunk, b, i, mono, mark in rich_spans(text):
         kind = mark[0] if mark else None
         if kind == "chip":
-            # a no-break space either side pads the shading, so the label sits in a pill
-            run = paragraph.add_run(f"\u00a0{chunk}\u00a0")
-            fill, colour = chip_colours(chunk, mark[1], theme)
-            _run_shade(run, fill)
-            run.font.color.rgb = RGBColor.from_string(colour)
-            run.bold = True
-            run.font.size = Pt(max(size - 1, 6))
-            _set_fonts(run, font)
+            _add_chip(paragraph, chunk, mark[1], theme, size, font)
             continue
         run = paragraph.add_run(chunk)
         run.bold = bold or b
@@ -1704,6 +1798,9 @@ def _toc_entries(blocks, theme: Theme) -> list[str]:
 
 def build(md_path: Path, out_path: Path, theme: Theme, toc_pages: dict | None = None) -> dict:
     meta, md = split_front_matter(Path(md_path).read_text(encoding="utf-8"))
+    theme, meta = theme.with_overrides(meta)    # this document's own theme settings
+    global _CHIP_IDS                            # same ids every build: builds stay byte-identical
+    _CHIP_IDS = iter(range(70000, 10**9))
     document = docx.Document(str(theme.base))
     apply_page_setup(document, theme)
     apply_line_height(document, theme)
@@ -1737,7 +1834,7 @@ def build(md_path: Path, out_path: Path, theme: Theme, toc_pages: dict | None = 
     filled = substitute(document, meta)
     name_all_styles(document)
     document.save(str(out_path))
-    return {"blocks": len(blocks), "tables": len(document.tables),
+    return {"blocks": len(blocks), "tables": len(document.tables), "theme": theme,
             "placeholders": filled, "warnings": warnings,
             "has_toc": any(k == "toc" for k, _ in blocks),
             # every heading, so the page lookup can find them; and just the
