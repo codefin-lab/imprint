@@ -126,6 +126,7 @@ space:
   list_item_after: 2
   list_after: 6
   table_after: 6
+  callout_after: 10
   image_after: 6
   image_caption_gap: 3
   h1_before_on_new_page: 0
@@ -148,6 +149,20 @@ table:
   min_column_share: 0.07
   max_column_share: 0.45
   char_twips: 115
+  title_fill: 1F2937             # `Table: Title` band above the header
+  title_color: FFFFFF
+  title_caps: true
+  label_fill: efefef            # label cells in a {layout=form} table
+  label_column_max_share: 0.25  # a form's label column wraps beyond this share of the width
+  section_row_min_twips: 560     # a filled box in {layout=sections}
+  # tones:                      # add or override tone= colour sets
+  #   brand: {band: 1F4E79, band_text: FFFFFF, band2: 2E75B6, band2_text: FFFFFF, label: DEEAF6, body: F5F9FD}
+
+callout:                        # > [!NOTE] boxes; each kind takes label, accent and fill
+  bar_size: 24                  # left bar, eighths of a point
+  label_gap_twips: 60
+  padding_twips: {top: 150, left: 200, bottom: 110, right: 200}
+  # warning: {label: ข้อควรระวัง, accent: D97706, fill: FFFBEB}
 
 page:
   margin_top_in: 1.0
