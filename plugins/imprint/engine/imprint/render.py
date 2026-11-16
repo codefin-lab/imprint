@@ -11,6 +11,7 @@ import unicodedata
 from xml.sax.saxutils import escape
 
 import copy
+import functools
 import hashlib
 import tempfile
 from pathlib import Path
@@ -86,10 +87,53 @@ def _run_shade(run, fill: str):
 _CHIP_IDS = iter(range(70000, 10**9))
 
 
-def _text_width_pt(text: str, size_pt: float, *, bold: bool) -> float:
-    """A close estimate of how wide `text` sets, for sizing a chip around it.
-    Thai vowel and tone marks above and below take no width; capitals and wide
-    letters take more than lower case."""
+_FONT_DIRS = [Path.home() / "Library" / "Fonts", Path("/Library/Fonts"), Path("/System/Library/Fonts"),
+              Path.home() / ".fonts", Path.home() / ".local" / "share" / "fonts", Path("/usr/share/fonts"),
+              Path("/usr/local/share/fonts"), Path("C:/Windows/Fonts"),
+              Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"]
+
+
+@functools.lru_cache(maxsize=32)
+def _font_file(family: str, bold: bool) -> Path | None:
+    """The installed file for a font family and weight, e.g. Sarabun-Bold.ttf."""
+    base = family.replace(" ", "")
+    wanted = [f"{base}-Bold", f"{base}Bold", f"{base}-SemiBold"] if bold else [f"{base}-Regular", base]
+    for name in wanted:
+        for d in _FONT_DIRS:
+            if not d.is_dir():
+                continue
+            for ext in (".ttf", ".otf", ".TTF", ".OTF"):
+                hit = d / f"{name}{ext}"
+                if hit.exists():
+                    return hit
+            for hit in d.rglob(f"{name}.*"):
+                if hit.suffix.lower() in (".ttf", ".otf"):
+                    return hit
+    return None
+
+
+@functools.lru_cache(maxsize=256)
+def _measured_width_pt(text: str, family: str, size_pt: float, bold: bool) -> float | None:
+    """How wide `text` sets in the real font, when the font file is on this machine."""
+    path = _font_file(family, bold)
+    if path is None:
+        return None
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(str(path), 1000)
+        return font.getlength(text) / 1000 * size_pt
+    except Exception:
+        return None
+
+
+def _text_width_pt(text: str, size_pt: float, *, bold: bool, font: str | None = None) -> float:
+    """How wide `text` sets, for sizing a chip around it: measured from the
+    font file when it is installed, otherwise a close estimate (Thai vowel and
+    tone marks above and below take no width; capitals take more than lower case)."""
+    if font:
+        measured = _measured_width_pt(text, font, round(size_pt, 2), bold)
+        if measured is not None:
+            return measured
     width = 0.0
     for ch in text:
         cat = unicodedata.category(ch)
@@ -111,31 +155,40 @@ def _text_width_pt(text: str, size_pt: float, *, bold: bool) -> float:
 
 
 def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: float, font: str):
-    """A chip: the label on a rounded rectangle, set inline in the text.
+    """A chip: a short label on a coloured ground, set in the text.
 
-    theme `chips:` (or a document's own `chips:` front matter) shapes it:
-    style (shape | box | shade), radius (0 square to 0.5 pill), padding_x and
-    padding_y in points, size_delta from the surrounding text, bold, border.
-    `style: shade` falls back to a shaded run, which has no rounded corners."""
+    theme `chips:` (or a document's own `chips:` front matter) shapes it.
+    style: shade (default) is character shading, ordinary Word formatting that
+    survives editing, copying, search and track changes, with square corners.
+    style: box is a rounded inline text box that grows with its text when edited,
+    but is an object of its own (not searchable, sits a little high).
+    padding (no-break spaces either side) and border apply to shade; radius
+    (0 square to 0.5 pill), padding_x and padding_y to box; size_delta and bold to both."""
     cfg = theme.chips or {}
     fill, text_colour = chip_colours(label, colour, theme)
     pt = max(size + float(cfg.get("size_delta", -1)), 6)
     bold = bool(cfg.get("bold", True))
-    if str(cfg.get("style", "shape")).lower() == "shade":
-        run = paragraph.add_run(f"\u00a0{label}\u00a0")
+    if str(cfg.get("style", "shade")).lower() != "box":
+        # one run: no seams between pieces, and Word treats it as plain text
+        # when someone edits, copies, searches or tracks changes.  Padding is
+        # no-break spaces either side (`padding`, a count).
+        space = "\u00a0" * max(int(cfg.get("padding", 1)), 0)
+        run = paragraph.add_run(f"{space}{label}{space}")
         _run_shade(run, fill)
         run.font.color.rgb = RGBColor.from_string(text_colour)
         run.bold = bold
         run.font.size = Pt(pt)
         _set_fonts(run, font)
+        if bold:
+            run._r.get_or_add_rPr().append(_el("w:bCs"))
+        if cfg.get("border"):
+            run._r.get_or_add_rPr().find(qn("w:shd")).addprevious(
+                _el("w:bdr", val="single", sz=4, space=0, color=str(cfg["border"]).upper()))
         return run
 
     pad_x = float(cfg.get("padding_x", 4))
     pad_y = float(cfg.get("padding_y", 1))
     radius = min(max(float(cfg.get("radius", 0.5)), 0.0), 0.5)
-    if str(cfg.get("style", "shape")).lower() != "box":
-        return _add_chip_behind(paragraph, label, fill, text_colour, theme, pt, font, bold,
-                                pad_x, pad_y, radius, cfg, size)
     w_pt = _text_width_pt(label, pt, bold=bold) + 2 * pad_x
     # the label's line is set exactly, so the box height does not hang on a
     # font's own line spacing (Thai fonts run tall and would sink the text)
@@ -172,85 +225,10 @@ def _add_chip(paragraph, label: str, colour: str | None, theme: Theme, size: flo
         f'<w:sz w:val="{half_points}"/><w:szCs w:val="{half_points}"/>'
         f'</w:rPr><w:t xml:space="preserve">{escape(label)}</w:t></w:r></w:p></w:txbxContent></wps:txbx>'
         f'<wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr" anchorCtr="0">'
-        f'<a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing>'
+        f'<a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing>'
     )
     run = paragraph.add_run()
     run._r.append(parse_xml(xml))
-    # an inline shape sits on the baseline.  `drop` (points) lowers it; off by
-    # default, because LibreOffice moves the label inside the box instead of
-    # the box, and the PDF would show the text sunk below the pill
-    drop = float(cfg.get("drop", 0))
-    if drop > 0:
-        run._r.get_or_add_rPr().append(_el("w:position", val=-int(round(drop * 2))))
-    return run
-
-
-def _pad_run(paragraph, pt: float, font: str):
-    """A gap exactly `pt` wide: a no-break space at 1pt, widened by character
-    spacing.  Word and LibreOffice both honour w:spacing to the twip."""
-    run = paragraph.add_run("\u00a0")
-    run.font.size = Pt(1)
-    _set_fonts(run, font)
-    run._r.get_or_add_rPr().append(_el("w:spacing", val=max(int(round((pt - 0.28) * 20)), 0)))
-    return run
-
-
-def _add_chip_behind(paragraph, label, fill, text_colour, theme: Theme, pt: float, font: str,
-                     bold: bool, pad_x: float, pad_y: float, radius: float, cfg: dict,
-                     text_pt: float):
-    """The label stays ordinary text on the line, so it shares the baseline of
-    the words around it, and a rounded box is drawn behind it, anchored to the
-    label's first character and centred on the line."""
-    w_pt = _text_width_pt(label, pt, bold=bold) + 2 * pad_x
-    h_pt = pt * float(cfg.get("line", 1.3)) + 2 * pad_y
-    emu = 12700
-    cx, cy = int(w_pt * emu), int(h_pt * emu)
-    border = cfg.get("border")
-    line = (f'<a:ln w="{int(float(cfg.get("border_width", 0.75)) * emu)}"><a:solidFill>'
-            f'<a:srgbClr val="{str(border).upper()}"/></a:solidFill></a:ln>'
-            if border else '<a:ln><a:noFill/></a:ln>')
-    sid = next(_CHIP_IDS)
-    # an offset from the top of the line (LibreOffice ignores <wp:align>center</wp:align>
-    # here), scaled by the text size so it holds at any size.
-    # in a table cell LibreOffice measures "line" from the baseline, Word from
-    # the line's top; both agree on the paragraph's top, and a chip in a cell
-    # is nearly always on the cell's first line
-    in_cell = paragraph._p.getparent() is not None and paragraph._p.getparent().tag == qn("w:tc")
-    frame = "paragraph" if in_cell else "line"
-    # measured on rendered pages (Word and LibreOffice agree to a pixel): these
-    # put the middle of the label's capitals in the middle of the box
-    factor = float(cfg.get("baseline_cell", 0.91) if in_cell else cfg.get("baseline", 1.03))
-    top = text_pt * factor - 0.33 * pt - h_pt / 2
-    vpos = f'<wp:posOffset>{int(top * emu)}</wp:posOffset>'
-    xml = (
-        f'<w:drawing {nsdecls("w", "wp", "a")} '
-        f'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
-        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{sid}" '
-        f'behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1">'
-        f'<wp:simplePos x="0" y="0"/>'
-        f'<wp:positionH relativeFrom="character"><wp:posOffset>0</wp:posOffset></wp:positionH>'
-        f'<wp:positionV relativeFrom="{frame}">{vpos}</wp:positionV>'
-        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>'
-        f'<wp:docPr id="{sid}" name="Chip {sid}" descr="{escape(label, {chr(34): "&quot;"})}"/>'
-        f'<wp:cNvGraphicFramePr/>'
-        f'<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
-        f'<wps:wsp><wps:cNvSpPr/>'
-        f'<wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
-        f'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val {int(radius * 100000)}"/></a:avLst></a:prstGeom>'
-        f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>{line}</wps:spPr>'
-        f'<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing>'
-    )
-    anchor = paragraph.add_run()
-    anchor._r.append(parse_xml(xml))
-    _pad_run(paragraph, pad_x, font)
-    run = paragraph.add_run(label)
-    run.bold = bold
-    run.font.size = Pt(pt)
-    run.font.color.rgb = RGBColor.from_string(text_colour)
-    _set_fonts(run, font)
-    if bold:
-        run._r.get_or_add_rPr().append(_el("w:bCs"))
-    _pad_run(paragraph, pad_x, font)
     return run
 
 

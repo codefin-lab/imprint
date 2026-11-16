@@ -19,8 +19,10 @@ asks for the engine release with the same number, and installs it when it is mis
   with a coloured bar; text after the marker replaces the label. The theme's `callout:` sets
   colours, labels and padding. On a slide a callout is a paragraph led by its label.
 - Inline: `[[Active]]` is a chip coloured by its label (theme `chips.labels`), `[[Hold|amber]]`
-  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes. A chip is a rounded
-  inline shape; the theme's `chips:` sets radius, padding, size, border, or `style: shade`. A `|`
+  names its colour; `!!text!!` is alert red; `[x]` and `[ ]` are ballot boxes. A chip is shaded text by
+  default (`style: shade`), ordinary Word formatting that survives editing, search and track
+  changes; `style: box` draws a rounded inline text box that grows with its text. The theme's
+  `chips:` sets padding, size, border and the box's radius. A `|`
   inside a chip does not split a table cell; `\|` writes a literal bar in a cell.
 - A document's front matter can adjust any theme section for that document alone, e.g.
   `chips: {radius: 0.2}` or `table: {header_fill: DDEBF7}`; verify checks against the result.

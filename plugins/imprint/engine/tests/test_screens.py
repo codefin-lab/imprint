@@ -131,15 +131,18 @@ def main() -> int:
         d = docx.Document(str(out))
 
         runs = [r for p in d.paragraphs for r in p.runs]
-        chips = chip_shapes(d.element.body)
-        expect(chips.get("Active", (None,))[0:2] == ("DCF2E3", "50000"),
-               f"Active is a green pill-shaped chip ({chips.get('Active')})")
-        expect(chips.get("Hold", (None,))[0] == "FEF3C7", "[[Hold|amber]] takes the colour it names")
-        anchors = [a for a in d.element.body.iter(f"{WP}anchor") if a.get("behindDoc") == "1"]
-        label = next((r for r in runs if r.text == "Active"), None)
-        expect(anchors and label is not None and label.bold,
-               "a chip's label is text on the line, its box drawn behind it")
-        expect("Signed off" in chips, "a [[chip|colour]] in a table cell keeps its pipe out of the columns")
+        def shade(run):
+            el = run._r.find(f"{qn('w:rPr')}/{qn('w:shd')}")
+            return None if el is None else el.get(qn("w:fill"))
+        active = next((r for r in runs if r.text == "\u00a0Active\u00a0"), None)
+        expect(active is not None and shade(active) == "DCF2E3" and active.bold,
+               "a chip is one shaded run by default, padded with no-break spaces: Active on green")
+        hold = next((r for r in runs if r.text == "\u00a0Hold\u00a0"), None)
+        expect(hold is not None and shade(hold) == "FEF3C7", "[[Hold|amber]] takes the colour it names")
+        cell_runs = [r for t in d.tables for row in t.rows for c in row.cells for p in c.paragraphs for r in p.runs]
+        expect(any(r.text.strip("\u00a0") == "Signed off" and shade(r) for r in cell_runs),
+               "a [[chip|colour]] in a table cell keeps its pipe out of the columns")
+        expect(not chip_shapes(d.element.body), "no drawn shapes for chips by default")
         alert = next(r for r in runs if r.text == "no going back")
         expect(str(alert.font.color.rgb) == "C00000", "!!text!! is red")
 
@@ -170,7 +173,7 @@ def main() -> int:
 
         # a document adjusts the theme in its own front matter
         md2 = tmp / "o.md"
-        md2.write_text("---\ncover: false\nchips: {style: shade}\ntable: {header_fill: DDEBF7}\n---\n\n"
+        md2.write_text("---\ncover: false\nchips: {style: box, radius: 0.2}\ntable: {header_fill: DDEBF7}\n---\n\n"
                        "[[Active]]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n", encoding="utf-8")
         out2 = tmp / "o.docx"
         stats = build(md2, out2, theme)
@@ -179,8 +182,11 @@ def main() -> int:
                and theme.table["header_fill"] != "DDEBF7",
                "front matter table: overrides this document only, and verify uses it")
         d2 = docx.Document(str(out2))
-        shaded = [r for p in d2.paragraphs for r in p.runs if r.text == "\u00a0Active\u00a0"]
-        expect(len(shaded) == 1 and not chip_shapes(d2.element.body), "chips: {style: shade} draws shaded runs")
+        boxes = chip_shapes(d2.element.body)
+        expect(boxes.get("Active", (None, None))[1] == "20000",
+               f"chips: {{style: box, radius: 0.2}} draws a rounded box at that radius ({boxes})")
+        grows = d2.element.body.find(".//" + A + "spAutoFit")
+        expect(grows is not None, "a box chip grows with its text when edited in Word")
 
     if failures:
         print(f"\n{len(failures)} failed")
