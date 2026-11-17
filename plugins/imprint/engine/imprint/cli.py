@@ -2,6 +2,7 @@
 
     imprint new <type> [path]        start a document from a template (no type: list them)
     imprint docx <file.md> [...]     build a .docx, and a PDF with --pdf
+    imprint toc <file.docx> [--pdf]  refresh the contents page numbers after editing a .docx
     imprint pptx <file.md> [...]     build a .pptx, and a PDF with --pdf
     imprint themes                   list the themes that ship with the engine, with their folders
     imprint widgets [name]           list the widgets; with a name, print its example block
@@ -192,6 +193,7 @@ def _run(module: str, argv: list[str]) -> int:
 COMMANDS = {
     "new": _new,
     "docx": lambda a: _run("build_docx", a),
+    "toc": lambda a: _run("toc", a),
     "pptx": lambda a: _run("build_pptx", a),
     "themes": _themes,
     "widgets": _widgets,
