@@ -3,6 +3,14 @@
 Versions follow Semantic Versioning. The skills and the engine share one version: a skill
 asks for the engine release with the same number, and installs it when it is missing.
 
+## Unreleased
+
+- Watermarks: `watermark: DRAFT` in the front matter (or the theme's `watermark:`) puts the text
+  behind every page, written the way Word's Design > Watermark writes it, so it can be changed
+  or removed from that menu. Options: color, opacity, angle, size, font, and `first: false` to
+  keep it off the first page; `<!-- watermark: off -->` / `<!-- watermark: on -->` take it off
+  a run of pages (each run starts a new page).
+
 ## 0.7.0 (2026-11-16)
 
 New syntax; documents that use none of it build as before. Text that is only `>` or `^` in a

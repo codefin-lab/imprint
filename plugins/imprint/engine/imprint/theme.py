@@ -57,6 +57,7 @@ class Theme:
     callout: dict = field(default_factory=dict)
     chips: dict = field(default_factory=dict)
     screen: dict = field(default_factory=dict)
+    watermark: dict = field(default_factory=dict)
     source: Path = field(repr=False, default=None)
 
     # --- convenience accessors used by the renderer -----------------------
@@ -121,7 +122,7 @@ class Theme:
     # theme sections a document may adjust in its own front matter
     OVERRIDABLE = ("font", "size", "list", "table", "rule", "page", "gantt", "image", "text",
                    "space", "cover", "line_height", "toc", "labels", "callout", "chips", "screen",
-                   "slides")
+                   "slides", "watermark")
 
     def with_overrides(self, meta: dict) -> tuple["Theme", dict]:
         """(theme, rest of meta): a front-matter key named after a theme section
@@ -135,6 +136,11 @@ class Theme:
         names = {f.name for f in fields(self)}
         for k, v in meta.items():
             key = str(k)
+            if key == "watermark" and not isinstance(v, dict):
+                # `watermark: DRAFT` is the text alone; `watermark: false` turns it off
+                off = v is None or v is False or str(v).strip().lower() in ("", "false", "no", "none", "off")
+                changes["watermark"] = {**self.watermark, "text": "" if off else str(v)}
+                continue
             if key in self.OVERRIDABLE and key in names and isinstance(v, (dict, float, int)) \
                     and (isinstance(v, dict) or key == "line_height"):
                 current = getattr(self, key)
@@ -183,5 +189,6 @@ class Theme:
             callout=data.get("callout", {}) or {},
             chips=data.get("chips", {}) or {},
             screen=data.get("screen", {}) or {},
+            watermark=data.get("watermark", {}) or {},
             source=spec,
         )
